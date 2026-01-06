@@ -94,7 +94,7 @@ const LogViewer = () => {
           height: '400px',
           overflowY: 'auto',
           padding: '12px',
-          fontFamily: "'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace",
+          fontFamily: "'Fira Code', 'Consolas', 'Monaco', 'Courier New', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', monospace",
           fontSize: '13px',
           lineHeight: '1.5',
           color: '#d4d4d4'

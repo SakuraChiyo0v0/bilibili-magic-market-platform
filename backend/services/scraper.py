@@ -237,7 +237,7 @@ class ScraperService:
 
     def run_scrape(self, max_pages=100):
         ScraperState.set_running(True)
-        logger.info(f"Scraper started. Max pages: {max_pages}")
+        # logger.info(f"Scraper started. Max pages: {max_pages}")
         try:
             url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
             next_id = None
@@ -251,51 +251,51 @@ class ScraperService:
             while True:
                 # Check max_pages limit (if not -1)
                 if max_pages != -1 and page_count >= max_pages:
-                    logger.info("Max pages reached. Stopping.")
+                    logger.info("达到最大页数限制，停止爬取。")
                     break
 
                 page_count += 1
 
                 # Check stop signal
                 if ScraperState.should_stop():
-                    logger.warning("Scraper stopped by user signal.")
+                    logger.warning("用户终止了爬虫任务。")
                     break
 
                 try:
                     payload = self.payload_template.copy()
                     payload["nextId"] = next_id
 
-                    logger.info(f"Fetching page {page_count}...")
+                    logger.info(f"正在获取第 {page_count} 页...")
                     response = requests.post(url, headers=self.headers, data=json.dumps(payload), timeout=10)
                     response.raise_for_status()
                     data = response.json()
 
                     if "data" not in data:
-                        logger.warning("No data in response.")
+                        logger.warning("响应数据为空。")
                         break
 
                     next_id = data["data"]["nextId"]
                     items = data["data"]["data"]
 
                     if not items:
-                        logger.info("No items found on this page.")
+                        logger.info("本页未发现商品。")
                         break
 
-                    logger.info(f"Found {len(items)} items. Processing...")
+                    logger.info(f"获取到 {len(items)} 个商品，正在处理...")
                     for item in items:
                         self.process_item(item)
 
                     if not next_id:
-                        logger.info("No next_id. Reached end of list.")
+                        logger.info("已到达列表末尾。")
                         break
 
                     # Check if we reached max_pages BEFORE sleeping
                     if max_pages != -1 and page_count >= max_pages:
-                        logger.info("Max pages reached (after processing). Stopping.")
+                        logger.info("达到最大页数限制，停止爬取。")
                         break
 
                     # Interruptible sleep
-                    logger.info(f"Sleeping for {request_interval}s...")
+                    # logger.info(f"Sleeping for {request_interval}s...")
                     for _ in range(int(request_interval * 10)):
                         if ScraperState.should_stop():
                             break
@@ -303,7 +303,7 @@ class ScraperService:
 
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 429:
-                        logger.warning("RATE_LIMIT_EXCEEDED: 请求过于频繁 (429)。临时增加 1秒 间隔并冷却 5秒。")
+                        logger.warning("请求过于频繁 (429)。临时增加 1秒 间隔并冷却 5秒。")
                         request_interval += 1.0
                         time.sleep(5) # Cool down for 5 seconds immediately
                         continue
@@ -316,4 +316,4 @@ class ScraperService:
                     break
         finally:
             ScraperState.set_running(False)
-            logger.info("Scraper stopped.")
+            logger.info("爬虫任务结束。")

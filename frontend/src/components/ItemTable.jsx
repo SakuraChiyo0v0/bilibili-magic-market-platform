@@ -457,6 +457,27 @@ const ItemTable = () => {
               </Col>
             </Row>
 
+            <h3>价格趋势</h3>
+            <div style={{ height: 200, marginBottom: 24 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={priceHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                  <XAxis
+                    dataKey="record_time"
+                    tickFormatter={(time) => new Date(time).toLocaleDateString()}
+                    stroke="#999"
+                    fontSize={12}
+                  />
+                  <YAxis stroke="#999" fontSize={12} />
+                  <RechartsTooltip
+                    labelFormatter={(time) => new Date(time).toLocaleString()}
+                    contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #ccc', borderRadius: 4 }}
+                  />
+                  <Line type="stepAfter" dataKey="price" stroke="#1890ff" dot={false} strokeWidth={2} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
             <h3>在售列表 (按价格排序)</h3>
             <Table
               dataSource={listings}

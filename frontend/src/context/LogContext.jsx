@@ -18,9 +18,8 @@ export const LogProvider = ({ children }) => {
       if (!isMounted) return;
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname;
-      const port = '8000';
-      const wsUrl = `${protocol}//${host}:${port}/ws/logs`;
+      const host = window.location.host; // host includes port if present
+      const wsUrl = `${protocol}//${host}/ws/logs`;
 
       ws.current = new WebSocket(wsUrl);
 

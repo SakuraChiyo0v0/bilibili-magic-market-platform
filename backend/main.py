@@ -403,7 +403,7 @@ def start_continuous_scrape(background_tasks: BackgroundTasks):
     job = scheduler.get_job('hourly_scrape')
     if job and job.next_run_time:
         job.pause()
-        logging.info("Paused scheduler for continuous scrape.")
+        logging.info("已暂停定时任务以运行常驻爬虫。")
 
     background_tasks.add_task(continuous_scrape_job)
     return {"message": "Continuous scrape started"}
