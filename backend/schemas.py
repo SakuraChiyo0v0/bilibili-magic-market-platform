@@ -41,6 +41,15 @@ class ListingResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PriceHistoryResponse(BaseModel):
+    id: int
+    goods_id: int
+    price: float
+    record_time: datetime
+
+    class Config:
+        from_attributes = True
+
 class ConfigUpdate(BaseModel):
     key: str
     value: str # JSON string

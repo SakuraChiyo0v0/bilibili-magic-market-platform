@@ -13,7 +13,7 @@ from logging.handlers import QueueHandler
 import queue
 from database import get_db, engine, SessionLocal
 from models import Base, Product, PriceHistory, SystemConfig, Listing
-from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse
+from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse
 
 from services.scraper import ScraperService
 from state import ScraperState
@@ -247,6 +247,11 @@ def get_items(
 def get_item_listings(goods_id: int, db: Session = Depends(get_db)):
     listings = db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).all()
     return listings
+
+@app.get("/api/items/{goods_id}/history", response_model=List[PriceHistoryResponse])
+def get_item_history(goods_id: int, db: Session = Depends(get_db)):
+    history = db.query(PriceHistory).filter(PriceHistory.goods_id == goods_id).order_by(PriceHistory.record_time.asc()).all()
+    return history
 
 @app.post("/api/items", response_model=ProductResponse)
 def create_item(item: ProductCreate, db: Session = Depends(get_db)):
