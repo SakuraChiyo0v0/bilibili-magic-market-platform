@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, message, Modal, Form, InputNumber, Popconfirm } from 'antd';
+import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, message, Modal, Form, InputNumber, Popconfirm, Tabs } from 'antd';
 import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 
 const { Option } = Select;
@@ -33,6 +34,8 @@ const ItemTable = () => {
   const [detailItem, setDetailItem] = useState(null);
   const [listings, setListings] = useState([]);
   const [listingsLoading, setListingsLoading] = useState(false);
+  const [priceHistory, setPriceHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Selection State
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -118,16 +121,30 @@ const ItemTable = () => {
     }
   };
 
+  const fetchHistory = async (goods_id) => {
+    setHistoryLoading(true);
+    try {
+      const res = await axios.get(`/api/items/${goods_id}/history`);
+      setPriceHistory(res.data);
+    } catch (error) {
+      message.error('获取历史价格失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const showDetail = (item) => {
     setDetailItem(item);
     setIsDetailModalVisible(true);
     fetchListings(item.goods_id);
+    fetchHistory(item.goods_id);
   };
 
   const handleDetailCancel = () => {
     setIsDetailModalVisible(false);
     setDetailItem(null);
     setListings([]);
+    setPriceHistory([]);
   };
 
   useEffect(() => {
