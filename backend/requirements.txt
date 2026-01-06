@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+pydantic
+pydantic-settings
+requests
+apscheduler
+pandas
+openpyxl

@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: magic-market-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    container_name: magic-market-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  db:
+    image: mysql:8.0
+    container_name: magic-market-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
