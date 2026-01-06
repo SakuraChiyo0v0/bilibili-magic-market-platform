@@ -6,7 +6,7 @@ services:
     container_name: magic-market-backend
     restart: always
     ports:
-      - "8000:8000"
+      - "8111:8111"
     environment:
       - MYSQL_HOST=${MYSQL_HOST}
       - MYSQL_PORT=${MYSQL_PORT}
@@ -23,7 +23,7 @@ services:
     container_name: magic-market-frontend
     restart: always
     ports:
-      - "80:80"
+      - "82:80"
     depends_on:
       - backend
     networks:
