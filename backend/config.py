@@ -19,4 +19,3 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=["../.env"], extra="ignore")
 
 settings = Settings()
-print(f"DEBUG CONFIG: User={settings.BMM_MYSQL_USER}, Host={settings.BMM_MYSQL_HOST}, DB={settings.BMM_MYSQL_DATABASE}")

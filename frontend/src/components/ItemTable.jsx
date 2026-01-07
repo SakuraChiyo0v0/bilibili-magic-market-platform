@@ -18,7 +18,7 @@ const ItemTable = () => {
 
   // Filter & Sort State
   const [searchText, setSearchText] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState([]);
   const [sortBy, setSortBy] = useState('update_time');
   const [sortOrder, setSortOrder] = useState('desc');
 
@@ -54,6 +54,7 @@ const ItemTable = () => {
     const init = async () => {
       let currentShowImages = true;
       let currentPageSize = 50;
+      let currentPage = 1;
 
       // 1. Load Config
       try {
@@ -84,12 +85,22 @@ const ItemTable = () => {
             setPagination(prev => ({ ...prev, pageSize: currentPageSize }));
           }
         } catch (e) {}
+
+        // Load Current Page
+        try {
+          const pageRes = await axios.get('/api/config/table_current_page');
+          if (pageRes.data.value) {
+            currentPage = parseInt(pageRes.data.value);
+            setPagination(prev => ({ ...prev, current: currentPage }));
+          }
+        } catch (e) {}
+
       } catch (error) {
         console.error(error);
       }
 
       // 2. Fetch Data
-      fetchData(pagination.current, currentPageSize);
+      fetchData(currentPage, currentPageSize);
     };
 
     init();
@@ -110,8 +121,8 @@ const ItemTable = () => {
         params.search = search;
       }
 
-      if (category) {
-        params.category = category;
+      if (category && category.length > 0) {
+        params.category = Array.isArray(category) ? category.join(',') : category;
       }
 
       const res = await axios.get('/api/items', { params });
@@ -170,6 +181,13 @@ const ItemTable = () => {
 
   const handleTableChange = (newPagination) => {
     fetchData(newPagination.current, newPagination.pageSize);
+    // Save current page to DB
+    axios.post('/api/config', { key: 'table_current_page', value: String(newPagination.current) }).catch(console.error);
+
+    // Save page size to DB if changed
+    if (newPagination.pageSize !== pagination.pageSize) {
+      axios.post('/api/config', { key: 'table_page_size', value: String(newPagination.pageSize) }).catch(console.error);
+    }
   };
 
   const onSelectChange = (newSelectedRowKeys) => {
@@ -387,13 +405,14 @@ const ItemTable = () => {
               */}
               <span style={{ color: '#666', marginLeft: 8 }}>分类:</span>
               <Select
+                mode="multiple"
                 value={categoryFilter}
-                style={{ width: 100 }}
+                style={{ minWidth: 120, maxWidth: 300 }}
                 onChange={handleCategoryChange}
                 allowClear
                 placeholder="全部"
+                maxTagCount="responsive"
               >
-                <Option value="">全部</Option>
                 {Object.entries(categoryMap).map(([key, label]) => (
                   <Option key={key} value={key}>{label}</Option>
                 ))}

@@ -228,7 +228,13 @@ def get_items(
         query = query.filter(Product.name.contains(search))
 
     if category:
-        query = query.filter(Product.category == category)
+        # Support multiple categories separated by comma
+        categories = [c for c in category.split(',') if c] # Filter out empty strings
+        if len(categories) > 0:
+            if len(categories) > 1:
+                query = query.filter(Product.category.in_(categories))
+            else:
+                query = query.filter(Product.category == categories[0])
 
     # Get total count before pagination
     total = query.count()
