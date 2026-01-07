@@ -6,7 +6,8 @@ import {
   SyncOutlined,
   CodeOutlined,
   StopOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import LogViewer from './LogViewer';
