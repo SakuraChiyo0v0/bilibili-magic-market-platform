@@ -276,6 +276,10 @@ class ScraperService:
             # Find the true minimum price from all active listings
             self.db.flush() # Ensure previous adds are visible
 
+            # Check if auto-check is enabled
+            auto_check_config = self.db.query(SystemConfig).filter(SystemConfig.key == "auto_check_min_price").first()
+            auto_check_enabled = auto_check_config.value.lower() == "true" if auto_check_config else False
+
             # Loop to find a valid minimum listing
             while True:
                 min_listing = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
@@ -287,23 +291,11 @@ class ScraperService:
                 if min_listing.c2c_id == c2c_id:
                     break
 
+                # If auto-check is disabled, we trust the DB and break
+                if not auto_check_enabled:
+                    break
+
                 # If the minimum listing is different, it might be stale.
-                # Check if we should verify it.
-                # Heuristic: If it hasn't been updated in the last 2 hours, check validity.
-                # Or, since the user wants "real-time" updates when lowest price expires,
-                # we can be more aggressive: if it's NOT the current item, check it.
-                # But to avoid too many requests, let's check if it's "old" enough.
-                # Actually, if we are here, it means we found a listing (c2c_id) but it's NOT the cheapest.
-                # The cheapest is min_listing.
-                # If min_listing is invalid, we should remove it and loop again.
-
-                # Let's check validity if it's not the current item.
-                # To prevent spamming checks, maybe only check if update_time is > 30 mins ago?
-                # For now, let's try checking immediately if it's different, but maybe limit this behavior?
-                # No, let's just check it. The user wants accuracy.
-
-                # Optimization: Only check if the price difference is significant? No.
-
                 # Check validity
                 logger.info(f"🔍 检查最低价有效性: {min_listing.c2c_id} (当前爬取: {c2c_id})")
                 if self.is_item_valid(min_listing.c2c_id, name):

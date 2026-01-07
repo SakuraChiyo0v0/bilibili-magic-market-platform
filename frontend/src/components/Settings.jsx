@@ -82,6 +82,14 @@ const Settings = () => {
         form.setFieldsValue({ table_page_size: 50 });
       }
 
+      // Fetch Auto Check Min Price
+      try {
+        const autoCheckRes = await axios.get('/api/config/auto_check_min_price');
+        form.setFieldsValue({ auto_check_min_price: autoCheckRes.data.value === 'true' });
+      } catch (e) {
+        form.setFieldsValue({ auto_check_min_price: false });
+      }
+
       // Fetch Filters
       try {
         const filterRes = await axios.get('/api/config/filter_settings');
@@ -148,6 +156,9 @@ const Settings = () => {
 
       // Save Page Size
       await axios.post('/api/config', { key: 'table_page_size', value: String(values.table_page_size) });
+
+      // Save Auto Check Min Price
+      await axios.post('/api/config', { key: 'auto_check_min_price', value: values.auto_check_min_price ? 'true' : 'false' });
 
       // Save Filters
       const filterSettings = {
@@ -288,6 +299,22 @@ const Settings = () => {
                     rules={[{ required: true, message: '请输入每页数量' }]}
                   >
                     <InputNumber min={10} max={500} step={10} style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item
+                    name="auto_check_min_price"
+                    label={
+                      <Space>
+                        自动检查最低价有效性
+                        <Tooltip title="开启后，当爬虫发现更低价格的挂单时，会自动检查该挂单是否有效。如果失效（已售出），将自动移除并更新为真实的最低价。">
+                          <QuestionCircleOutlined style={{ color: '#999' }} />
+                        </Tooltip>
+                      </Space>
+                    }
+                    valuePropName="checked"
+                  >
+                    <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                   </Form.Item>
                 </Col>
               </Row>
