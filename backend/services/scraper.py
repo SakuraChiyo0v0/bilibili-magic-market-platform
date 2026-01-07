@@ -286,14 +286,39 @@ class ScraperService:
             # Handle "All" category (empty categoryFilter)
             # If categoryFilter is empty, we randomly select one for this run to ensure we can tag items correctly
             target_category = self.payload_template.get("categoryFilter", "")
+
+            category_map = {
+                "2312": "手办",
+                "2066": "模型",
+                "2331": "周边",
+                "2273": "3C",
+                "fudai_cate_id": "福袋"
+            }
+
             if not target_category:
-                categories = ["2312", "2066", "2331", "2273", "fudai_cate_id"]
-                target_category = random.choice(categories)
+                # Weighted random selection
+                weights = {}
+                filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
+                if filter_config:
+                    try:
+                        settings = json.loads(filter_config.value)
+                        weights = settings.get("category_weights", {})
+                    except:
+                        pass
+
+                categories = list(category_map.keys())
+                # Default weight 20 if not set
+                category_weights = [weights.get(c, 20) for c in categories]
+
+                target_category = random.choices(categories, weights=category_weights, k=1)[0]
+
                 self.current_category_id = target_category
-                logger.info(f"当前配置为全部分类，本次随机选中分类: {target_category}")
+                category_name = category_map.get(target_category, target_category)
+                logger.info(f"当前配置为全部分类，本次随机选中分类: {category_name} (权重: {weights.get(target_category, 20)})")
             else:
                 self.current_category_id = target_category
-                logger.info(f"当前爬取分类: {target_category}")
+                category_name = category_map.get(target_category, target_category)
+                logger.info(f"当前爬取分类: {category_name}")
 
             page_count = 0
             while True:

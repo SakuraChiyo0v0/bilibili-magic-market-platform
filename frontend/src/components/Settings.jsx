@@ -86,14 +86,19 @@ const Settings = () => {
       try {
         const filterRes = await axios.get('/api/config/filter_settings');
         const settings = JSON.parse(filterRes.data.value);
+
         form.setFieldsValue({
           category: settings.category || "2312",
-          priceFilters: settings.priceFilters || []
+          priceFilters: settings.priceFilters || [],
+          category_weights: settings.category_weights || {
+            '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20
+          }
         });
       } catch (e) {
         form.setFieldsValue({
           category: "2312",
-          priceFilters: ["0-2000", "3000-5000", "20000-0", "5000-10000", "2000-3000", "10000-20000", "20000-0"]
+          priceFilters: ["0-2000", "3000-5000", "20000-0", "5000-10000", "2000-3000", "10000-20000", "20000-0"],
+          category_weights: { '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20 }
         });
       }
 
@@ -132,7 +137,8 @@ const Settings = () => {
       // Save Filters
       const filterSettings = {
         category: values.category,
-        priceFilters: values.priceFilters
+        priceFilters: values.priceFilters,
+        category_weights: values.category_weights
       };
       await axios.post('/api/config', { key: 'filter_settings', value: JSON.stringify(filterSettings) });
 
@@ -281,7 +287,7 @@ const Settings = () => {
                 label={
                   <Space>
                     搜索分类
-                    <Tooltip title="选择要爬取的商品分类。如果选择“全部”，爬虫每次运行时会随机选择一个分类进行抓取，从而实现全覆盖。">
+                    <Tooltip title="选择要爬取的商品分类。如果选择“全部”，爬虫每次运行时会根据下方设置的权重随机选择一个分类。">
                       <QuestionCircleOutlined style={{ color: '#999' }} />
                     </Tooltip>
                   </Space>
@@ -289,6 +295,32 @@ const Settings = () => {
                 rules={[{ required: false }]}
               >
                 <Select options={categoryOptions} placeholder="请选择搜索分类" allowClear />
+              </Form.Item>
+
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) => prevValues.category !== currentValues.category}
+              >
+                {({ getFieldValue }) =>
+                  !getFieldValue('category') ? (
+                    <Form.Item label="分类权重 (仅在选择“全部”时生效)">
+                      <Row gutter={16}>
+                        {categoryOptions.filter(c => c.value).map(option => (
+                          <Col span={12} key={option.value}>
+                            <Form.Item
+                              name={['category_weights', option.value]}
+                              label={option.label.split(' ')[0]}
+                              initialValue={20}
+                              style={{ marginBottom: 12 }}
+                            >
+                              <InputNumber min={0} max={100} formatter={value => `${value}%`} parser={value => value.replace('%', '')} style={{ width: '100%' }} />
+                            </Form.Item>
+                          </Col>
+                        ))}
+                      </Row>
+                    </Form.Item>
+                  ) : null
+                }
               </Form.Item>
 
               <Form.Item
