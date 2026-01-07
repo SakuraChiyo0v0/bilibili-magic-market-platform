@@ -97,6 +97,10 @@ class ScraperService:
                 # logger.debug(f"Skipping bundle: {item_data.get('c2cItemsName', name)}")
                 return False
 
+            # Skip Fudai (Blind Box) items
+            if item_data.get('type') == 2:
+                return False
+
             total_price = float(item_data['showPrice'])
 
             # Single item
@@ -115,11 +119,6 @@ class ScraperService:
             current_category = self.current_category_id or self.payload_template.get("categoryFilter", "2312")
             if not current_category or current_category == "ALL":
                  current_category = "2312"
-
-            # Special handling for Fudai (Blind Box)
-            # If the item type is 2 (Blind Box/Fudai), force category to fudai_cate_id
-            if item_data.get('type') == 2:
-                current_category = "fudai_cate_id"
 
             is_new = False
             is_price_changed = False
@@ -150,8 +149,8 @@ class ScraperService:
             else:
                 # Update basic info
                 product.update_time = datetime.now()
-                # Update category if it was default or empty, OR if it's a Fudai (type 2)
-                if not product.category or product.category == "2312" or item_data.get('type') == 2:
+                # Update category if it was default or empty
+                if not product.category or product.category == "2312":
                      product.category = current_category
                 # self.db.commit() # Defer commit
 
@@ -255,8 +254,7 @@ class ScraperService:
                 "2312": "手办",
                 "2066": "模型",
                 "2331": "周边",
-                "2273": "3C",
-                "fudai_cate_id": "福袋"
+                "2273": "3C"
             }
 
             if not target_category or target_category == "ALL":
@@ -271,14 +269,14 @@ class ScraperService:
                         pass
 
                 categories = list(category_map.keys())
-                # Default weight 20 if not set
-                category_weights = [weights.get(c, 20) for c in categories]
+                # Default weight 25 if not set (for 4 categories)
+                category_weights = [weights.get(c, 25) for c in categories]
 
                 target_category = random.choices(categories, weights=category_weights, k=1)[0]
 
                 self.current_category_id = target_category
                 category_name = category_map.get(target_category, target_category)
-                logger.info(f"当前配置为全部分类，本次随机选中分类: {category_name} (权重: {weights.get(target_category, 20)})")
+                logger.info(f"当前配置为全部分类，本次随机选中分类: {category_name} (权重: {weights.get(target_category, 25)})")
             else:
                 self.current_category_id = target_category
                 category_name = category_map.get(target_category, target_category)

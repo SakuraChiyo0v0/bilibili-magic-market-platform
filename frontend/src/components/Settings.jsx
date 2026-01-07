@@ -25,7 +25,6 @@ const Settings = () => {
     { label: '模型 (2066)', value: '2066' },
     { label: '周边 (2331)', value: '2331' },
     { label: '3C (2273)', value: '2273' },
-    { label: '福袋 (fudai_cate_id)', value: 'fudai_cate_id' },
   ];
 
   const fetchConfig = async () => {
@@ -91,7 +90,7 @@ const Settings = () => {
         let weights = settings.category_weights || {};
         if (Object.keys(weights).length === 0) {
            weights = {
-            '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20
+            '2312': 25, '2066': 25, '2331': 25, '2273': 25
           };
         }
 
@@ -113,7 +112,7 @@ const Settings = () => {
         form.setFieldsValue({
           category: "2312",
           priceFilters: ["0-2000", "3000-5000", "20000-0", "5000-10000", "2000-3000", "10000-20000", "20000-0"],
-          category_weights: { '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20 }
+          category_weights: { '2312': 25, '2066': 25, '2331': 25, '2273': 25 }
         });
       }
 
@@ -338,7 +337,7 @@ const Settings = () => {
                             <Form.Item
                               name={['category_weights', option.value]}
                               label={option.label.split(' ')[0]}
-                              initialValue={20}
+                              initialValue={25}
                               style={{ marginBottom: 12 }}
                             >
                               <InputNumber min={0} max={100} formatter={value => `${value}%`} parser={value => value.replace('%', '')} style={{ width: '100%' }} />
