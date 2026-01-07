@@ -138,43 +138,23 @@ class ScraperService:
         product = self.db.query(Product).filter(Product.goods_id == goods_id).first()
         name = product.name if product else str(goods_id)
 
-        def check_single_listing(c2c_id, item_name):
-            # This runs in a thread, do not access DB objects here
-            is_valid = self.is_item_valid(c2c_id, item_name)
-            return c2c_id, is_valid
-
-        # Check in batches until we find enough valid listings
-        batch_size = 5
-        for i in range(0, len(listings), batch_size):
+        # Check sequentially to be gentle to the server
+        for listing in listings:
             if valid_count >= target_valid_count:
                 break
 
-            batch = listings[i : i + batch_size]
+            # Check validity
+            is_valid = self.is_item_valid(listing.c2c_id, name)
+            checked_count += 1
 
-            # Map c2c_id back to listing object for deletion
-            c2c_id_to_listing = {l.c2c_id: l for l in batch}
+            if is_valid:
+                valid_count += 1
+            else:
+                self.db.delete(listing)
+                removed_count += 1
 
-            # Use ThreadPoolExecutor for concurrent checks within the batch
-            with ThreadPoolExecutor(max_workers=batch_size) as executor:
-                # Pass primitive types (c2c_id, name) instead of SQLAlchemy objects
-                future_to_c2c_id = {
-                    executor.submit(check_single_listing, l.c2c_id, name): l.c2c_id
-                    for l in batch
-                }
-
-                for future in as_completed(future_to_c2c_id):
-                    try:
-                        c2c_id, is_valid = future.result()
-                        checked_count += 1
-                        if is_valid:
-                            valid_count += 1
-                        else:
-                            listing_to_delete = c2c_id_to_listing.get(c2c_id)
-                            if listing_to_delete:
-                                self.db.delete(listing_to_delete)
-                                removed_count += 1
-                    except Exception as e:
-                        logger.error(f"Error checking listing validity: {e}")
+            # Sleep between checks to avoid rate limiting
+            time.sleep(random.uniform(1.0, 2.0))
 
         if removed_count > 0:
             self.db.commit()
@@ -494,9 +474,13 @@ class ScraperService:
                         logger.info(f"已完成指定页数 ({max_pages}页) 的爬取任务，自动停止。")
                         break
 
-                    # Interruptible sleep
-                    # logger.info(f"Sleeping for {request_interval}s...")
-                    for _ in range(int(request_interval * 10)):
+                    # Interruptible sleep with random jitter
+                    # Add 0-20% random jitter to the interval
+                    jitter = random.uniform(0, request_interval * 0.2)
+                    total_sleep = request_interval + jitter
+
+                    # logger.info(f"Sleeping for {total_sleep:.2f}s...")
+                    for _ in range(int(total_sleep * 10)):
                         if ScraperState.should_stop():
                             break
                         time.sleep(0.1)
