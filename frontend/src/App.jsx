@@ -1,14 +1,32 @@
 import React, { useState } from 'react';
-import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined } from '@ant-design/icons';
+import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs } from 'antd';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
+import ControlPanel from './components/ControlPanel';
 import ItemTable from './components/ItemTable';
 import Settings from './components/Settings';
 import { LogProvider } from './context/LogContext';
 
 const { Header, Content, Footer, Sider } = Layout;
 const { Title } = Typography;
+
+const DashboardPage = () => {
+  const items = [
+    {
+      key: '1',
+      label: <span><PieChartOutlined /> 数据概览</span>,
+      children: <Dashboard />,
+    },
+    {
+      key: '2',
+      label: <span><CodeOutlined /> 爬虫控制</span>,
+      children: <ControlPanel />,
+    },
+  ];
+
+  return <Tabs defaultActiveKey="1" items={items} />;
+};
 
 function AppContent() {
   const [collapsed, setCollapsed] = useState(false);
@@ -71,7 +89,7 @@ function AppContent() {
             }}
           >
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<DashboardPage />} />
               <Route path="/items" element={<ItemTable />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
