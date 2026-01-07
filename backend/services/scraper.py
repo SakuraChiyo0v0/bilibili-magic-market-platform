@@ -275,7 +275,49 @@ class ScraperService:
             # 3. Update Product min_price and link
             # Find the true minimum price from all active listings
             self.db.flush() # Ensure previous adds are visible
-            min_listing = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
+
+            # Loop to find a valid minimum listing
+            while True:
+                min_listing = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
+
+                if not min_listing:
+                    break
+
+                # If the minimum listing is the one we just processed, it's valid (we just saw it)
+                if min_listing.c2c_id == c2c_id:
+                    break
+
+                # If the minimum listing is different, it might be stale.
+                # Check if we should verify it.
+                # Heuristic: If it hasn't been updated in the last 2 hours, check validity.
+                # Or, since the user wants "real-time" updates when lowest price expires,
+                # we can be more aggressive: if it's NOT the current item, check it.
+                # But to avoid too many requests, let's check if it's "old" enough.
+                # Actually, if we are here, it means we found a listing (c2c_id) but it's NOT the cheapest.
+                # The cheapest is min_listing.
+                # If min_listing is invalid, we should remove it and loop again.
+
+                # Let's check validity if it's not the current item.
+                # To prevent spamming checks, maybe only check if update_time is > 30 mins ago?
+                # For now, let's try checking immediately if it's different, but maybe limit this behavior?
+                # No, let's just check it. The user wants accuracy.
+
+                # Optimization: Only check if the price difference is significant? No.
+
+                # Check validity
+                logger.info(f"🔍 检查最低价有效性: {min_listing.c2c_id} (当前爬取: {c2c_id})")
+                if self.is_item_valid(min_listing.c2c_id, name):
+                    # It's valid, so it really is the cheapest.
+                    # Update its time so we don't check it again too soon?
+                    min_listing.update_time = datetime.now()
+                    break
+                else:
+                    # It's invalid! Delete it.
+                    logger.info(f"🗑️ 移除失效最低价: {min_listing.c2c_id}")
+                    self.db.delete(min_listing)
+                    self.db.flush() # Flush delete so next query sees it
+                    # Loop continues to find next cheapest
+
             if min_listing:
                 old_price = product.min_price
                 new_price = min_listing.price
