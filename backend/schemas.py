@@ -7,6 +7,7 @@ class ProductBase(BaseModel):
     name: str
     img: str
     market_price: float
+    category: Optional[str] = None
     min_price: Optional[float] = None
     link: Optional[str] = None
     update_time: datetime
@@ -19,6 +20,7 @@ class ProductCreate(BaseModel):
     name: str
     img: str
     market_price: float
+    category: Optional[str] = "2312"
     min_price: Optional[float] = None
     link: Optional[str] = None
 
@@ -26,6 +28,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     img: Optional[str] = None
     market_price: Optional[float] = None
+    category: Optional[str] = None
     min_price: Optional[float] = None
     link: Optional[str] = None
 

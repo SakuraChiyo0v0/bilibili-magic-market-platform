@@ -219,12 +219,16 @@ def get_items(
     sort_by: str = "update_time",
     order: str = "desc",
     search: Optional[str] = None,
+    category: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(Product)
 
     if search:
         query = query.filter(Product.name.contains(search))
+
+    if category:
+        query = query.filter(Product.category == category)
 
     # Get total count before pagination
     total = query.count()

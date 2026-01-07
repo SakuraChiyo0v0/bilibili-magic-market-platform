@@ -18,11 +18,21 @@ const ItemTable = () => {
 
   // Filter & Sort State
   const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [sortBy, setSortBy] = useState('update_time');
   const [sortOrder, setSortOrder] = useState('desc');
 
   // Settings State
   const [showImages, setShowImages] = useState(true);
+
+  // Category Map
+  const categoryMap = {
+    '2312': '手办',
+    '2066': '模型',
+    '2331': '周边',
+    '2273': '3C',
+    'fudai_cate_id': '福袋'
+  };
 
   // Modal State
   // const [isModalVisible, setIsModalVisible] = useState(false);
@@ -85,7 +95,7 @@ const ItemTable = () => {
     init();
   }, []);
 
-  const fetchData = async (page = pagination.current, pageSize = pagination.pageSize, search = searchText, sort = sortBy, order = sortOrder) => {
+  const fetchData = async (page = pagination.current, pageSize = pagination.pageSize, search = searchText, category = categoryFilter, sort = sortBy, order = sortOrder) => {
     setLoading(true);
     try {
       const skip = (page - 1) * pageSize;
@@ -98,6 +108,10 @@ const ItemTable = () => {
 
       if (search) {
         params.search = search;
+      }
+
+      if (category) {
+        params.category = category;
       }
 
       const res = await axios.get('/api/items', { params });
@@ -179,17 +193,22 @@ const ItemTable = () => {
 
   const handleSearch = () => {
     // Reset to page 1 when searching
-    fetchData(1, pagination.pageSize, searchText, sortBy, sortOrder);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder);
+  };
+
+  const handleCategoryChange = (value) => {
+    setCategoryFilter(value);
+    fetchData(1, pagination.pageSize, searchText, value, sortBy, sortOrder);
   };
 
   const handleSortChange = (value) => {
     setSortBy(value);
-    fetchData(1, pagination.pageSize, searchText, value, sortOrder);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, value, sortOrder);
   };
 
   const handleOrderChange = (value) => {
     setSortOrder(value);
-    fetchData(1, pagination.pageSize, searchText, sortBy, value);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, value);
   };
 
   const copyLink = (link) => {
@@ -270,6 +289,9 @@ const ItemTable = () => {
           </div>
           <Space size="small">
              <Tag>{record.goods_id}</Tag>
+             {record.category && categoryMap[String(record.category)] && (
+               <Tag color="blue">{categoryMap[String(record.category)]}</Tag>
+             )}
           </Space>
         </div>
       )
@@ -363,6 +385,19 @@ const ItemTable = () => {
                 新增商品
               </Button>
               */}
+              <span style={{ color: '#666', marginLeft: 8 }}>分类:</span>
+              <Select
+                value={categoryFilter}
+                style={{ width: 100 }}
+                onChange={handleCategoryChange}
+                allowClear
+                placeholder="全部"
+              >
+                <Option value="">全部</Option>
+                {Object.entries(categoryMap).map(([key, label]) => (
+                  <Option key={key} value={key}>{label}</Option>
+                ))}
+              </Select>
               <span style={{ color: '#666', marginLeft: 8 }}>排序:</span>
               <Select value={sortBy} style={{ width: 120 }} onChange={handleSortChange}>
                 <Option value="update_time">更新时间</Option>

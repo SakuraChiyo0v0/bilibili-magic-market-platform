@@ -8,6 +8,8 @@ from models import Product, PriceHistory, SystemConfig, Listing
 from database import SessionLocal
 from state import ScraperState
 
+from sqlalchemy.exc import IntegrityError
+
 logger = logging.getLogger(__name__)
 
 class ScraperService:
@@ -158,19 +160,27 @@ class ScraperService:
                     pass
 
             if not product:
-                product = Product(
-                    goods_id=goods_id,
-                    name=name,
-                    img=img,
-                    market_price=market_price,
-                    min_price=price, # Initial min price
-                    category=current_category,
-                    update_time=datetime.now()
-                )
-                self.db.add(product)
-                # self.db.commit() # Defer commit
-                # self.db.refresh(product)
-                logger.info(f"🆕 发现新商品: 『{name}』 ¥{price}")
+                try:
+                    product = Product(
+                        goods_id=goods_id,
+                        name=name,
+                        img=img,
+                        market_price=market_price,
+                        min_price=price, # Initial min price
+                        category=current_category,
+                        update_time=datetime.now()
+                    )
+                    self.db.add(product)
+                    self.db.flush() # Try to flush to catch IntegrityError
+                    logger.info(f"🆕 发现新商品: 『{name}』   ¥ {price:,.2f}")
+                except IntegrityError:
+                    self.db.rollback()
+                    # Retry query, it should exist now
+                    product = self.db.query(Product).filter(Product.goods_id == goods_id).first()
+                    if not product:
+                        # Should not happen
+                        logger.error(f"Failed to recover from IntegrityError for goods_id {goods_id}")
+                        return
             else:
                 # Update basic info
                 product.update_time = datetime.now()
@@ -231,9 +241,9 @@ class ScraperService:
                     percent = (diff / old_price * 100) if old_price > 0 else 0
 
                     if diff < 0:
-                        logger.info(f"📉 降价提醒: 『{name}』 ¥{old_price} -> ¥{new_price} (降幅 {abs(percent):.1f}%)")
+                        logger.info(f"📉 降价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (降幅 {abs(percent):.1f}%)")
                     else:
-                        logger.info(f"📈 涨价提醒: 『{name}』 ¥{old_price} -> ¥{new_price} (旧货已出)")
+                        logger.info(f"📈 涨价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (旧货已出)")
 
             # Final commit for the item
             self.db.commit()
