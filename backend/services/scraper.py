@@ -48,11 +48,53 @@ class ScraperService:
             "nextId": None
         }
 
-    # ... (other methods) ...
+    def is_item_valid(self, c2c_id, item_name):
+        url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/items/queryC2cItemsDetail"
+        try:
+            payload = {"c2cItemsId": int(c2c_id)}
+            # Use a shorter timeout for validity
+            # checks
+            response = requests.get(url, headers=self.headers, params=payload, timeout=5)
+
+            if response.status_code != 200:
+                logger.warning(f"Item {c2c_id} check failed: HTTP {response.status_code}")
+                return False
+
+            data = response.json()
+
+            # If code is not 0, it's likely an error (e.g. item not found)
+            if data.get("code") != 0:
+                logger.info(f"Item {c2c_id} invalid: API code {data.get('code')} - {data.get('message')}")
+                return False
+
+            # If data is None, item is gone
+            item_data = data.get("data")
+            if not item_data:
+                logger.info(f"Item {c2c_id} invalid: No data returned")
+                return False
+
+            # Check status
+            # publishStatus: 1 (Published/Active)
+            # saleStatus: 1 (On Sale/Available)
+            publish_status = item_data.get("publishStatus")
+            sale_status = item_data.get("saleStatus")
+
+            if publish_status != 1 or sale_status != 1:
+                logger.info(f"Item {c2c_id} invalid: publishStatus={publish_status}, saleStatus={sale_status}")
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Check validity error for {c2c_id}: {e}")
+            # If network error, assume valid to prevent deletion
+            return True
 
     def check_listings_validity(self, goods_id):
         # Get all listings ordered by price
         listings = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).all()
+
+        logger.info(f"正在检查商品 ID {goods_id} 的有效性。数据库中找到 {len(listings)} 个挂单。")
 
         target_valid_count = 5
         valid_count = 0
