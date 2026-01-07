@@ -49,7 +49,7 @@ if errorlevel 1 (
 )
 
 :: Start backend in new window using python -m uvicorn
-start "MagicMarket Backend" cmd /k "title MagicMarket Backend && echo Starting Backend... && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+start "MagicMarket Backend" cmd /k "title MagicMarket Backend && echo Starting Backend... && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8111"
 
 :: ==============================
 :: Start Frontend
@@ -74,7 +74,7 @@ start "MagicMarket Frontend" cmd /k "title MagicMarket Frontend && echo Starting
 echo.
 echo ========================================================
 echo      Services Started!
-echo      Backend: http://127.0.0.1:8000/docs
+echo      Backend: http://127.0.0.1:8111/docs
 echo      Frontend: http://localhost:5173
 echo ========================================================
 echo.
@@ -88,8 +88,8 @@ taskkill /FI "WINDOWTITLE eq MagicMarket Backend*" /T /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq MagicMarket Frontend*" /T /F >nul 2>&1
 
 :: 2. Force kill by port (ensure they are dead)
-:: Backend (8000)
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":8000" ^| find "LISTENING"') do taskkill /f /pid %%a >nul 2>&1
+:: Backend (8111)
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":8111" ^| find "LISTENING"') do taskkill /f /pid %%a >nul 2>&1
 :: Frontend (5173)
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":5173" ^| find "LISTENING"') do taskkill /f /pid %%a >nul 2>&1
 

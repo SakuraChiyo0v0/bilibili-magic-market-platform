@@ -3,3 +3,7 @@
 /output/
 /backup/
 /frontend/node_modules/
+
+# Environment Variables
+.env
+

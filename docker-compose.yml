@@ -8,11 +8,11 @@ services:
     ports:
       - "8111:8111"
     environment:
-      - MYSQL_HOST=${MYSQL_HOST}
-      - MYSQL_PORT=${MYSQL_PORT}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - BMM_MYSQL_HOST=${BMM_MYSQL_HOST}
+      - BMM_MYSQL_PORT=${BMM_MYSQL_PORT}
+      - BMM_MYSQL_USER=${BMM_MYSQL_USER}
+      - BMM_MYSQL_PASSWORD=${BMM_MYSQL_PASSWORD}
+      - BMM_MYSQL_DATABASE=${BMM_MYSQL_DATABASE}
     networks:
       - app-network
 
