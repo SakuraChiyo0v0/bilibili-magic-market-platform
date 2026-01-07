@@ -87,11 +87,21 @@ const Settings = () => {
         const filterRes = await axios.get('/api/config/filter_settings');
         const settings = JSON.parse(filterRes.data.value);
 
+        // Load weights from API response
+        let weights = settings.category_weights || {};
+        if (Object.keys(weights).length === 0) {
+           weights = {
+            '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20
+          };
+        }
+
         // Ensure category is empty string if it's missing or null, to trigger 'All' logic
         // But if it's explicitly "", keep it as ""
         let categoryValue = "2312";
         if (settings.category !== undefined) {
             categoryValue = settings.category === "" ? "ALL" : settings.category;
+        } else if (settings.category === "ALL") {
+            categoryValue = "ALL";
         }
 
         form.setFieldsValue({
@@ -323,7 +333,7 @@ const Settings = () => {
                       }
                     >
                       <Row gutter={16}>
-                        {categoryOptions.filter(c => c.value).map(option => (
+                        {categoryOptions.filter(c => c.value && c.value !== 'ALL').map(option => (
                           <Col span={12} key={option.value}>
                             <Form.Item
                               name={['category_weights', option.value]}

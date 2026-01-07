@@ -144,11 +144,25 @@ const ItemTable = () => {
   const fetchListings = async (goods_id) => {
     setListingsLoading(true);
     try {
+      // 1. Load existing data immediately
       const res = await axios.get(`/api/items/${goods_id}/listings`);
       setListings(res.data);
+      setListingsLoading(false); // Stop loading spinner so user can see data
+
+      // 2. Trigger validity check in background
+      try {
+          const checkRes = await axios.post(`/api/items/${goods_id}/check_validity`);
+          if (checkRes.data.removed > 0) {
+              message.info(`已自动清理 ${checkRes.data.removed} 个失效链接，正在刷新...`);
+              // 3. Reload data if changes occurred
+              const newRes = await axios.get(`/api/items/${goods_id}/listings`);
+              setListings(newRes.data);
+          }
+      } catch (e) {
+          console.error("Validity check failed", e);
+      }
     } catch (error) {
       message.error('获取详情失败');
-    } finally {
       setListingsLoading(false);
     }
   };
@@ -536,13 +550,14 @@ const ItemTable = () => {
               </ResponsiveContainer>
             </div>
 
-            <h3>在售列表 (按价格排序)</h3>
+            <h3>在售列表 (最低价前5)</h3>
             <Table
-              dataSource={listings}
+              dataSource={listings.slice(0, 5)}
               rowKey="c2c_id"
               loading={listingsLoading}
-              pagination={{ pageSize: 10 }}
+              pagination={false}
               size="small"
+              locale={{ emptyText: '当前暂无有效在售商品，可能已被抢光或链接失效。' }}
               columns={[
                 {
                   title: '价格',

@@ -273,6 +273,12 @@ def get_item_history(goods_id: int, db: Session = Depends(get_db)):
     history = db.query(PriceHistory).filter(PriceHistory.goods_id == goods_id).order_by(PriceHistory.record_time.asc()).all()
     return history
 
+@app.post("/api/items/{goods_id}/check_validity")
+def check_item_validity(goods_id: int, db: Session = Depends(get_db)):
+    service = ScraperService(db)
+    result = service.check_listings_validity(goods_id)
+    return result
+
 @app.post("/api/items", response_model=ProductResponse)
 def create_item(item: ProductCreate, db: Session = Depends(get_db)):
     db_item = db.query(Product).filter(Product.goods_id == item.goods_id).first()
