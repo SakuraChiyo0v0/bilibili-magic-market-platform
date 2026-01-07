@@ -16,6 +16,6 @@ class Settings(BaseSettings):
     def DATABASE_URL(self):
         return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=["../.env", ".env"], extra="ignore")
 
 settings = Settings()

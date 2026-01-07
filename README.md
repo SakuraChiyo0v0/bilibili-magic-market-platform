@@ -1,25 +1,52 @@
-# Bilibili Magic Market Scraper (Advanced Version)
+# Magic Market Price Platform (魔力市场价格平台)
 
-这是一个基于 FastAPI + React + MySQL 的高级版 Bilibili 魔力赏市场爬虫程序。
+这是一个基于 FastAPI + React + MySQL 的全栈 Bilibili 魔力赏市场价格监控平台。
 
 ## 功能特性
 
-- **Web UI**: 现，而不是be代化的数据看板，支持排序、筛选、分页。
+- **Web UI**: 现代化的数据看板，支持排序、筛选、分页。
 - **持久化存储**: 使用 MySQL 数据库存储商品信息和历史价格。
 - **自动抓取**: 后台定时任务自动抓取最新数据。
-- **价格趋势**: 记录商品价格变化历史。
+- **价格趋势**: 可视化记录商品价格变化历史。
 - **配置管理**: 在网页上直接修改 Cookie 和筛选条件。
+- **Docker 部署**: 支持一键 Docker 部署。
 
 ## 目录结构
 
 - `backend/`: Python 后端代码 (FastAPI)
 - `frontend/`: React 前端代码 (Vite + Ant Design)
 
-## 安装与运行
+## 快速开始 (Docker 部署 - 推荐)
+
+这是最简单的运行方式，适合服务器部署。
+
+### 前置要求
+- Docker
+- Docker Compose
+
+### 启动服务
+
+在项目根目录下运行：
+
+```bash
+docker-compose up -d --build
+```
+
+### 访问服务
+
+- **前端页面**: `http://localhost:82` (或服务器 IP:82)
+- **后端 API**: `http://localhost:8111`
+- **数据库**: `localhost:3307`
+
+---
+
+## 本地开发指南
+
+如果你想修改代码，可以分别启动前后端。
 
 ### 1. 数据库准备
 
-确保你已经安装了 MySQL，并创建了一个名为 `magic_market` 的数据库（或者你可以修改配置文件让程序自动创建，但最好手动创建数据库）。
+确保你已经安装了 MySQL，并创建了一个名为 `magic_market` 的数据库。
 
 ```sql
 CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -37,8 +64,8 @@ CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     pip install -r requirements.txt
     ```
 
-3.  配置数据库连接：
-    打开 `backend/.env` 文件，修改你的数据库连接信息：
+3.  配置环境变量：
+    复制 `.env.example` (如果有) 或直接创建 `.env` 文件，配置数据库连接：
     ```ini
     DB_HOST=localhost
     DB_PORT=3306
@@ -49,18 +76,19 @@ CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 4.  启动后端服务：
     ```bash
-    uvicorn main:app --reload
+    # 注意：为了与前端代理匹配，建议指定端口 8111
+    uvicorn main:app --reload --port 8111
     ```
-    服务将在 `http://127.0.0.1:8000` 启动。
+    服务将在 `http://127.0.0.1:8111` 启动。
 
 ### 3. 前端设置 (Frontend)
 
-1.  打开一个新的终端窗口，进入 `frontend` 目录：
+1.  进入 `frontend` 目录：
     ```bash
     cd frontend
     ```
 
-2.  安装依赖 (需要 Node.js)：
+2.  安装依赖：
     ```bash
     npm install
     ```
@@ -69,14 +97,15 @@ CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     ```bash
     npm run dev
     ```
-    服务将在 `http://localhost:5173` (通常是这个端口) 启动。
+    服务将在 `http://localhost:5173` 启动。
+    *注意：前端配置了代理，会将 `/api` 请求转发到 `http://127.0.0.1:8111`。*
 
 ## 使用说明
 
-1.  打开浏览器访问前端地址 (如 `http://localhost:5173`)。
+1.  打开浏览器访问前端地址。
 2.  **首次使用配置**：
     - 点击左侧菜单的 **Settings**。
-    - 在 **Request Headers** 中，填入你从 Bilibili 获取的 `cookie` (这是必须的，否则无法抓取)。你可以参考 `main.py` 中的旧 cookie，或者在浏览器 F12 中获取最新的。
+    - 在 **Request Headers** 中，填入你从 Bilibili 获取的 `cookie` (这是必须的，否则无法抓取)。
     - 点击 **Save Configuration**。
 3.  **开始抓取**：
     - 点击左侧菜单的 **Dashboard**。
@@ -88,4 +117,4 @@ CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ## 注意事项
 
 - 请勿频繁请求，以免被 Bilibili 封禁 IP。
-- `backend/services/scraper.py` 中设置了简单的速率限制 (`time.sleep`)。
+- `backend/services/scraper.py` 中设置了简单的速率限制。
