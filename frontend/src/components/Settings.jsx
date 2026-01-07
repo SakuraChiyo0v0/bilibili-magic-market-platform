@@ -20,6 +20,7 @@ const Settings = () => {
   ];
 
   const categoryOptions = [
+    { label: '全部 (All)', value: '' },
     { label: '手办 (2312)', value: '2312' },
     { label: '模型 (2066)', value: '2066' },
     { label: '周边 (2331)', value: '2331' },
@@ -277,11 +278,17 @@ const Settings = () => {
             >
               <Form.Item
                 name="category"
-                label="分类 ID"
-                extra="选择要爬取的商品分类，默认为手办 (2312)。"
-                rules={[{ required: true, message: '请选择分类 ID' }]}
+                label={
+                  <Space>
+                    搜索分类
+                    <Tooltip title="选择要爬取的商品分类。如果选择“全部”，爬虫每次运行时会随机选择一个分类进行抓取，从而实现全覆盖。">
+                      <QuestionCircleOutlined style={{ color: '#999' }} />
+                    </Tooltip>
+                  </Space>
+                }
+                rules={[{ required: false }]}
               >
-                <Select options={categoryOptions} />
+                <Select options={categoryOptions} placeholder="请选择搜索分类" allowClear />
               </Form.Item>
 
               <Form.Item

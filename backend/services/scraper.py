@@ -2,6 +2,7 @@ import json
 import time
 import logging
 import requests
+import random
 from sqlalchemy.orm import Session
 from datetime import datetime
 from models import Product, PriceHistory, SystemConfig, Listing
@@ -17,6 +18,7 @@ class ScraperService:
         self.db = db
         self.headers = self._get_headers()
         self.payload_template = self._get_payload_template()
+        self.current_category_id = None # Track current category for this run
 
     def _get_headers(self):
         # 1. Try to get specific user_cookie
@@ -113,14 +115,14 @@ class ScraperService:
     def process_item(self, item_data):
         # Check stop signal before processing each item
         if ScraperState.should_stop():
-            return
+            return False # Return False if stopped
 
         try:
             c2c_id = str(item_data['c2cItemsId'])
             details = item_data.get('detailDtoList', [])
 
             if not details:
-                return
+                return False
 
             first_detail = details[0]
             goods_id = first_detail['itemsId']
@@ -133,7 +135,7 @@ class ScraperService:
             # Skip multi-item listings (bundles)
             if count > 1 or "等" in item_data.get('c2cItemsName', '') and "个商品" in item_data.get('c2cItemsName', ''):
                 # logger.debug(f"Skipping bundle: {item_data.get('c2cItemsName', name)}")
-                return
+                return False
 
             total_price = float(item_data['showPrice'])
 
@@ -144,20 +146,18 @@ class ScraperService:
             link = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={c2c_id}&from=market_index"
 
             if goods_id == 0:
-                return # Skip blind box
+                return False # Skip blind box
 
             # 1. Upsert Product
             product = self.db.query(Product).filter(Product.goods_id == goods_id).first()
 
-            # Get current category from config
-            current_category = "2312"
-            filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
-            if filter_config:
-                try:
-                    settings = json.loads(filter_config.value)
-                    current_category = settings.get("category", "2312")
-                except:
-                    pass
+            # Get current category from payload template or random selection
+            current_category = self.current_category_id or self.payload_template.get("categoryFilter", "2312")
+            if not current_category:
+                 current_category = "2312"
+
+            is_new = False
+            is_price_changed = False
 
             if not product:
                 try:
@@ -172,6 +172,7 @@ class ScraperService:
                     )
                     self.db.add(product)
                     self.db.flush() # Try to flush to catch IntegrityError
+                    is_new = True
                     logger.info(f"🆕 发现新商品: 『{name}』   ¥ {price:,.2f}")
                 except IntegrityError:
                     self.db.rollback()
@@ -180,7 +181,7 @@ class ScraperService:
                     if not product:
                         # Should not happen
                         logger.error(f"Failed to recover from IntegrityError for goods_id {goods_id}")
-                        return
+                        return False
             else:
                 # Update basic info
                 product.update_time = datetime.now()
@@ -234,6 +235,7 @@ class ScraperService:
 
                 if old_price != new_price:
                     product.min_price = new_price
+                    is_price_changed = True
                     # self.db.commit() # Defer commit
 
                     # Log formatting
@@ -248,9 +250,12 @@ class ScraperService:
             # Final commit for the item
             self.db.commit()
 
+            return {"is_new": is_new, "is_price_changed": is_price_changed}
+
         except Exception as e:
             logger.error(f"处理商品出错: {e}")
             self.db.rollback()
+            return False
 
     def _get_request_interval(self):
         config = self.db.query(SystemConfig).filter(SystemConfig.key == "request_interval").first()
@@ -278,6 +283,18 @@ class ScraperService:
             url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
             next_id = None
 
+            # Handle "All" category (empty categoryFilter)
+            # If categoryFilter is empty, we randomly select one for this run to ensure we can tag items correctly
+            target_category = self.payload_template.get("categoryFilter", "")
+            if not target_category:
+                categories = ["2312", "2066", "2331", "2273", "fudai_cate_id"]
+                target_category = random.choice(categories)
+                self.current_category_id = target_category
+                logger.info(f"当前配置为全部分类，本次随机选中分类: {target_category}")
+            else:
+                self.current_category_id = target_category
+                logger.info(f"当前爬取分类: {target_category}")
+
             page_count = 0
             while True:
                 # Check max_pages limit (if not -1)
@@ -295,6 +312,8 @@ class ScraperService:
                 try:
                     payload = self.payload_template.copy()
                     payload["nextId"] = next_id
+                    # Override categoryFilter with our selected target
+                    payload["categoryFilter"] = target_category
 
                     logger.info(f"正在获取第 {page_count} 页...")
                     response = requests.post(url, headers=self.headers, data=json.dumps(payload), timeout=10)
@@ -313,8 +332,19 @@ class ScraperService:
                         break
 
                     logger.info(f"获取到 {len(items)} 个商品，正在处理...")
+
+                    new_count = 0
+                    updated_count = 0
+
                     for item in items:
-                        self.process_item(item)
+                        result = self.process_item(item)
+                        if result:
+                            if result.get("is_new"):
+                                new_count += 1
+                            if result.get("is_price_changed"):
+                                updated_count += 1
+
+                    logger.info(f"✅ 第 {page_count} 页处理完成。新增: {new_count}, 价格变动: {updated_count}")
 
                     if not next_id:
                         logger.info("已到达列表末尾。")
