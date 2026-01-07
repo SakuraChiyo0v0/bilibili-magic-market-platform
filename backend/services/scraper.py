@@ -283,8 +283,7 @@ class ScraperService:
             url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
             next_id = None
 
-            # Handle "All" category (empty categoryFilter)
-            # If categoryFilter is empty, we randomly select one for this run to ensure we can tag items correctly
+            # Handle "All" category (categoryFilter is 'ALL' or empty)
             target_category = self.payload_template.get("categoryFilter", "")
 
             category_map = {
@@ -295,7 +294,7 @@ class ScraperService:
                 "fudai_cate_id": "福袋"
             }
 
-            if not target_category:
+            if not target_category or target_category == "ALL":
                 # Weighted random selection
                 weights = {}
                 filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
@@ -338,7 +337,7 @@ class ScraperService:
                     payload = self.payload_template.copy()
                     payload["nextId"] = next_id
                     # Override categoryFilter with our selected target
-                    payload["categoryFilter"] = target_category
+                    payload["categoryFilter"] = target_category if target_category != "ALL" else "2312" # Fallback just in case, but target_category should be resolved by now
 
                     logger.info(f"正在获取第 {page_count} 页...")
                     response = requests.post(url, headers=self.headers, data=json.dumps(payload), timeout=10)

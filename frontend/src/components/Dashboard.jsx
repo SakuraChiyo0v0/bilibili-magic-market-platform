@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Button, message, Badge, Space, Collapse, Typography, theme, Divider } from 'antd';
+import { Card, Col, Row, Statistic, Button, message, Badge, Space, Collapse, Typography, theme, Divider, Modal } from 'antd';
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -9,13 +9,15 @@ import {
   CodeOutlined,
   ThunderboltOutlined,
   ClockCircleOutlined,
-  StopOutlined
+  StopOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import LogViewer from './LogViewer';
 
 const { Panel } = Collapse;
 const { Title, Text } = Typography;
+const { confirm } = Modal;
 
 const Dashboard = () => {
   const { token } = theme.useToken();
@@ -43,6 +45,22 @@ const Dashboard = () => {
 
   // 1. Continuous Scrape
   const handleContinuousScrape = async () => {
+    if (scraperStatus.scheduler_status === 'running') {
+      confirm({
+        title: '确认启动常驻爬虫?',
+        icon: <ExclamationCircleOutlined />,
+        content: '检测到定时调度正在运行。启动常驻爬虫将自动暂停定时调度任务。',
+        onOk() {
+          startContinuous();
+        },
+        onCancel() {},
+      });
+    } else {
+      startContinuous();
+    }
+  };
+
+  const startContinuous = async () => {
     setLoading(true);
     try {
       await axios.post('/api/scraper/continuous/start');
@@ -57,13 +75,20 @@ const Dashboard = () => {
 
   // 2. Interval Scrape (Scheduler)
   const toggleScheduler = async (action) => {
+    if (action === 'start' && scraperStatus.is_running) {
+      message.warning('无法开启定时调度：检测到常驻爬虫正在运行。请先停止常驻爬虫。');
+      return;
+    }
+
     setLoading(true);
     try {
       await axios.post(`/api/scraper/scheduler/toggle?action=${action}`);
       message.success(`定时调度已${action === 'start' ? '开启' : '暂停'}`);
       fetchStatus();
     } catch (error) {
-      message.error('操作失败');
+      // Handle backend error message
+      const errorMsg = error.response?.data?.detail || '操作失败';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }

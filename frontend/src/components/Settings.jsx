@@ -20,7 +20,7 @@ const Settings = () => {
   ];
 
   const categoryOptions = [
-    { label: '全部 (All)', value: '' },
+    { label: '全部 (All)', value: 'ALL' },
     { label: '手办 (2312)', value: '2312' },
     { label: '模型 (2066)', value: '2066' },
     { label: '周边 (2331)', value: '2331' },
@@ -87,12 +87,17 @@ const Settings = () => {
         const filterRes = await axios.get('/api/config/filter_settings');
         const settings = JSON.parse(filterRes.data.value);
 
+        // Ensure category is empty string if it's missing or null, to trigger 'All' logic
+        // But if it's explicitly "", keep it as ""
+        let categoryValue = "2312";
+        if (settings.category !== undefined) {
+            categoryValue = settings.category === "" ? "ALL" : settings.category;
+        }
+
         form.setFieldsValue({
-          category: settings.category || "2312",
+          category: categoryValue,
           priceFilters: settings.priceFilters || [],
-          category_weights: settings.category_weights || {
-            '2312': 20, '2066': 20, '2331': 20, '2273': 20, 'fudai_cate_id': 20
-          }
+          category_weights: weights
         });
       } catch (e) {
         form.setFieldsValue({
@@ -301,9 +306,22 @@ const Settings = () => {
                 noStyle
                 shouldUpdate={(prevValues, currentValues) => prevValues.category !== currentValues.category}
               >
-                {({ getFieldValue }) =>
-                  !getFieldValue('category') ? (
-                    <Form.Item label="分类权重 (仅在选择“全部”时生效)">
+                {({ getFieldValue }) => {
+                  const category = getFieldValue('category');
+                  // Show weights if category is 'ALL'
+                  const showWeights = category === 'ALL';
+
+                  return showWeights ? (
+                    <Form.Item
+                      label={
+                        <Space>
+                          分类权重 (仅在选择“全部”时生效)
+                          <Tooltip title="设置各个分类被随机选中的相对概率。数值越大，被选中的几率越高。无需总和为 100。">
+                            <QuestionCircleOutlined style={{ color: '#999' }} />
+                          </Tooltip>
+                        </Space>
+                      }
+                    >
                       <Row gutter={16}>
                         {categoryOptions.filter(c => c.value).map(option => (
                           <Col span={12} key={option.value}>
@@ -319,8 +337,8 @@ const Settings = () => {
                         ))}
                       </Row>
                     </Form.Item>
-                  ) : null
-                }
+                  ) : null;
+                }}
               </Form.Item>
 
               <Form.Item
