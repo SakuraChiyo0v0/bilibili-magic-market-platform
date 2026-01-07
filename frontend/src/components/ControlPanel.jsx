@@ -7,7 +7,8 @@ import {
   CodeOutlined,
   StopOutlined,
   ExclamationCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import LogViewer from './LogViewer';
@@ -29,119 +30,55 @@ const ControlPanel = () => {
     }
   };
 
-  // 1. Continuous Scrape
-  const handleContinuousScrape = async () => {
-    if (scraperStatus.scheduler_status === 'running') {
-      modal.confirm({
-        title: '确认启动常驻爬虫?',
-        icon: <ExclamationCircleOutlined />,
-        content: '检测到定时调度正在运行。启动常驻爬虫将自动暂停定时调度任务。',
-        onOk() {
-          startContinuous();
-        },
-        onCancel() {},
-      });
-    } else {
-      startContinuous();
-    }
-  };
+  // ... (handlers)
 
-  const startContinuous = async () => {
-    setLoading(true);
-    try {
-      await axios.post('/api/scraper/continuous/start');
-      message.success('常驻爬虫已启动');
-      fetchStatus();
-    } catch (error) {
-      message.error('启动失败: ' + (error.response?.data?.detail || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 2. Interval Scrape (Scheduler)
-  const toggleScheduler = async (action) => {
-    if (action === 'start' && scraperStatus.is_running) {
-      message.warning('无法开启定时调度：检测到常驻爬虫正在运行。请先停止常驻爬虫。');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await axios.post(`/api/scraper/scheduler/toggle?action=${action}`);
-      message.success(`定时调度已${action === 'start' ? '开启' : '暂停'}`);
-      fetchStatus();
-    } catch (error) {
-      // Handle backend error message
-      const errorMsg = error.response?.data?.detail || '操作失败';
-      message.error(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 3. Manual Scrape (One-off)
-  const triggerManualScrape = async () => {
-    setLoading(true);
-    try {
-      await axios.post('/api/scraper/manual');
-      message.success('已触发手动爬取 (1页)');
-      fetchStatus();
-    } catch (error) {
-      message.error('操作失败: ' + (error.response?.data?.detail || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Stop Any Scrape
-  const stopScrape = async () => {
-    setLoading(true);
-    try {
-      await axios.post('/api/scraper/stop');
-      message.success('已发送停止信号');
-
-      // Poll until stopped
-      const checkStop = setInterval(async () => {
-        try {
-          const res = await axios.get('/api/scraper/status');
-          setScraperStatus(res.data);
-          if (!res.data.is_running) {
-            clearInterval(checkStop);
-            setLoading(false);
-            message.success('爬虫已完全停止');
-          }
-        } catch (e) {
-          clearInterval(checkStop);
-          setLoading(false);
-        }
-      }, 1000);
-
-      // Timeout after 15s
-      setTimeout(() => {
-        clearInterval(checkStop);
-        setLoading(false);
-      }, 15000);
-
-    } catch (error) {
-      message.error('停止失败');
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(() => {
-      fetchStatus();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // ... (useEffect)
 
   const isSchedulerRunning = scraperStatus.scheduler_status === 'running';
   const isScraping = scraperStatus.is_running;
 
   return (
-    <Card
+    <div>
+      {/* Status Card */}
+      <Card variant="borderless" style={{ marginBottom: 24, background: '#fafafa' }}>
+        <Row align="middle" justify="space-between">
+          <Col>
+            <Space size="large">
+              <Space>
+                <ThunderboltOutlined style={{ fontSize: 24, color: isScraping ? token.colorSuccess : token.colorTextSecondary }} />
+                <div>
+                  <div style={{ fontSize: 12, color: token.colorTextSecondary }}>当前状态</div>
+                  <div style={{ fontSize: 18, fontWeight: 'bold', color: isScraping ? token.colorSuccess : token.colorText }}>
+                    {isScraping ? "正在爬取" : "空闲中"}
+                  </div>
+                </div>
+              </Space>
+              <Divider type="vertical" style={{ height: 32 }} />
+              <Space>
+                <ClockCircleOutlined style={{ fontSize: 24, color: isSchedulerRunning ? token.colorPrimary : token.colorTextSecondary }} />
+                <div>
+                  <div style={{ fontSize: 12, color: token.colorTextSecondary }}>定时调度</div>
+                  <div style={{ fontSize: 18, fontWeight: 'bold', color: isSchedulerRunning ? token.colorPrimary : token.colorText }}>
+                    {isSchedulerRunning ? "已开启" : "已关闭"}
+                  </div>
+                </div>
+              </Space>
+            </Space>
+          </Col>
+          <Col>
+            {isSchedulerRunning && scraperStatus.next_run && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: token.colorTextSecondary }}>下次自动运行</div>
+                <div style={{ fontSize: 16, fontFamily: 'monospace' }}>
+                  {new Date(scraperStatus.next_run).toLocaleTimeString()}
+                </div>
+              </div>
+            )}
+          </Col>
+        </Row>
+      </Card>
+
+      <Card
         title={<Space><CodeOutlined /><span>控制中心</span></Space>}
         style={{ marginBottom: 24 }}
       >
