@@ -94,9 +94,9 @@ const ItemTable = () => {
       }
 
       const res = await axios.get('/api/items', { params });
-      setData(res.data);
+      setData(res.data.items);
 
-      const newPagination = { ...pagination, current: page, pageSize };
+      const newPagination = { ...pagination, current: page, pageSize, total: res.data.total };
       setPagination(newPagination);
       sessionStorage.setItem('itemTablePagination', JSON.stringify(newPagination));
 
@@ -175,6 +175,7 @@ const ItemTable = () => {
   };
 
   const handleSearch = () => {
+    // Reset to page 1 when searching
     fetchData(1, pagination.pageSize, searchText, sortBy, sortOrder);
   };
 

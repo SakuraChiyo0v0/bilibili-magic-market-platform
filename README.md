@@ -105,7 +105,12 @@ CREATE DATABASE magic_market CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 1.  打开浏览器访问前端地址。
 2.  **首次使用配置**：
     - 点击左侧菜单的 **Settings**。
-    - 在 **Request Headers** 中，填入你从 Bilibili 获取的 `cookie` (这是必须的，否则无法抓取)。
+    - **获取 Cookie**:
+        1. 在浏览器中访问 [Bilibili 魔力赏市场](https://mall.bilibili.com/neul-next/index.html?page=magic-market_index) 并登录。
+        2. 按 `F12` 打开开发者工具，切换到 **Network** (网络) 标签页。
+        3. 刷新页面，找到名为 `list` 或 `queryC2cItemsDetail` 的请求。
+        4. 在请求头 (Request Headers) 中找到 `cookie` 字段，复制其全部内容。
+    - 在 **Request Headers** 中，填入你获取的 `cookie`。
     - 点击 **Save Configuration**。
 3.  **开始抓取**：
     - 点击左侧菜单的 **Dashboard**。

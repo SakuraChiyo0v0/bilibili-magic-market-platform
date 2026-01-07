@@ -13,7 +13,7 @@ from logging.handlers import QueueHandler
 import queue
 from database import get_db, engine, SessionLocal
 from models import Base, Product, PriceHistory, SystemConfig, Listing
-from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse
+from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse
 
 from services.scraper import ScraperService
 from state import ScraperState
@@ -138,6 +138,13 @@ def continuous_scrape_job():
         service.run_scrape(max_pages=-1)
         logging.info("常驻爬取任务已停止。")
     finally:
+        # Resume scheduler if enabled in config
+        config_enabled = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
+        if config_enabled and config_enabled.value.lower() == "true":
+            job = scheduler.get_job('hourly_scrape')
+            if job:
+                job.resume()
+                logging.info("常驻任务结束，已恢复定时调度任务。")
         db.close()
 
 @app.on_event("startup")
@@ -205,7 +212,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # Endpoints
 
-@app.get("/api/items", response_model=List[ProductResponse])
+@app.get("/api/items", response_model=ProductListResponse)
 def get_items(
     skip: int = 0,
     limit: int = 50,
@@ -218,6 +225,9 @@ def get_items(
 
     if search:
         query = query.filter(Product.name.contains(search))
+
+    # Get total count before pagination
+    total = query.count()
 
     sort_attr = Product.update_time # Default
 
@@ -241,7 +251,7 @@ def get_items(
         query = query.order_by(sort_attr.asc())
 
     items = query.offset(skip).limit(limit).all()
-    return items
+    return {"items": items, "total": total}
 
 @app.get("/api/items/{goods_id}/listings", response_model=List[ListingResponse])
 def get_item_listings(goods_id: int, db: Session = Depends(get_db)):
@@ -401,7 +411,7 @@ def start_continuous_scrape(background_tasks: BackgroundTasks):
 
     # Pause scheduler job if running to avoid conflict
     job = scheduler.get_job('hourly_scrape')
-    if job and job.next_run_time:
+    if job:
         job.pause()
         logging.info("已暂停定时任务以运行常驻爬虫。")
 
@@ -411,6 +421,11 @@ def start_continuous_scrape(background_tasks: BackgroundTasks):
 @app.post("/api/scraper/scheduler/toggle")
 def toggle_scheduler(action: str, db: Session = Depends(get_db)): # action: start, stop
     job = scheduler.get_job('hourly_scrape')
+
+    if action == "start":
+        # Check if continuous scraper is running
+        if ScraperState.is_running():
+             raise HTTPException(status_code=400, detail="Cannot start scheduler while scraper is running. Please stop scraper first.")
 
     # Update DB config
     config = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
@@ -441,8 +456,17 @@ def toggle_scheduler(action: str, db: Session = Depends(get_db)): # action: star
         raise HTTPException(status_code=400, detail="Invalid action")
 
 @app.post("/api/scraper/stop")
-def stop_scrape():
+def stop_scrape(db: Session = Depends(get_db)):
     ScraperState.set_stop(True)
+
+    # Resume scheduler if enabled in config
+    config_enabled = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
+    if config_enabled and config_enabled.value.lower() == "true":
+        job = scheduler.get_job('hourly_scrape')
+        if job:
+            job.resume()
+            logging.info("已发送停止信号，并恢复定时调度任务。")
+
     return {"message": "Stop signal sent"}
 
 @app.post("/api/scraper/manual")

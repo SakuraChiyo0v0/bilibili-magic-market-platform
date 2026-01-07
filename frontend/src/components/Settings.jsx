@@ -61,14 +61,6 @@ const Settings = () => {
         form.setFieldsValue({ auto_scrape_max_pages: 50 });
       }
 
-      // Fetch Table Page Size
-      try {
-        const sizeRes = await axios.get('/api/config/table_page_size');
-        form.setFieldsValue({ table_page_size: sizeRes.data.value });
-      } catch (e) {
-        form.setFieldsValue({ table_page_size: 50 });
-      }
-
       // Fetch Filters
       try {
         const filterRes = await axios.get('/api/config/filter_settings');
@@ -113,9 +105,6 @@ const Settings = () => {
       // Save Max Pages
       await axios.post('/api/config', { key: 'auto_scrape_max_pages', value: String(values.auto_scrape_max_pages) });
 
-      // Save Table Page Size
-      await axios.post('/api/config', { key: 'table_page_size', value: String(values.table_page_size) });
-
       // Save Filters
       const filterSettings = {
         category: values.category,
@@ -149,7 +138,17 @@ const Settings = () => {
         <Form.Item
           name="user_cookie"
           label="Bilibili Cookie"
-          extra="请在此处粘贴您的 Cookie 字符串。您可以在浏览器开发者工具（网络选项卡）中找到它。"
+          extra={
+            <div>
+              <p>请在此处粘贴您的 Cookie 字符串。获取方法：</p>
+              <ol style={{ fontSize: '12px', color: '#888', paddingLeft: '20px' }}>
+                <li>在浏览器中访问 <a href="https://mall.bilibili.com/neul-next/index.html?page=magic-market_index" target="_blank" rel="noopener noreferrer">Bilibili 魔力赏市场</a> 并登录。</li>
+                <li>按 <code>F12</code> 打开开发者工具，切换到 <strong>Network (网络)</strong> 标签页。</li>
+                <li>刷新页面，找到名为 <code>list</code> 或 <code>queryC2cItemsDetail</code> 的请求。</li>
+                <li>在请求头 (Request Headers) 中找到 <code>cookie</code> 字段，复制其全部内容。</li>
+              </ol>
+            </div>
+          }
           rules={[{ required: true, message: '请输入您的 Cookie' }]}
         >
           <Input.TextArea rows={4} placeholder="buvid3=...; SESSDATA=...;" />

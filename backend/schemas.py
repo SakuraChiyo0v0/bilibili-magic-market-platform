@@ -32,6 +32,10 @@ class ProductUpdate(BaseModel):
 class ProductResponse(ProductBase):
     pass
 
+class ProductListResponse(BaseModel):
+    items: List[ProductResponse]
+    total: int
+
 class ListingResponse(BaseModel):
     c2c_id: str
     goods_id: int

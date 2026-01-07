@@ -29,6 +29,7 @@ class ScraperService:
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,zh-TW;q=0.5,ja;q=0.4',
             'content-type': 'application/json',
+            'referer': 'https://mall.bilibili.com/neul-next/index.html?page=magic-market_index',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0'
         }
 
@@ -239,19 +240,24 @@ class ScraperService:
         ScraperState.set_running(True)
         # logger.info(f"Scraper started. Max pages: {max_pages}")
         try:
-            url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
-            next_id = None
-
             # Refresh config
             self.headers = self._get_headers()
             self.payload_template = self._get_payload_template()
             request_interval = self._get_request_interval()
 
+            # Validate Cookie
+            if 'cookie' not in self.headers or not self.headers['cookie'] or len(self.headers['cookie']) < 10:
+                logger.error("❌ 未检测到有效的 Cookie！请先在设置页面配置 Bilibili Cookie。")
+                return
+
+            url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
+            next_id = None
+
             page_count = 0
             while True:
                 # Check max_pages limit (if not -1)
                 if max_pages != -1 and page_count >= max_pages:
-                    logger.info("达到最大页数限制，停止爬取。")
+                    logger.info(f"已完成指定页数 ({max_pages}页) 的爬取任务，自动停止。")
                     break
 
                 page_count += 1
@@ -291,7 +297,7 @@ class ScraperService:
 
                     # Check if we reached max_pages BEFORE sleeping
                     if max_pages != -1 and page_count >= max_pages:
-                        logger.info("达到最大页数限制，停止爬取。")
+                        logger.info(f"已完成指定页数 ({max_pages}页) 的爬取任务，自动停止。")
                         break
 
                     # Interruptible sleep
