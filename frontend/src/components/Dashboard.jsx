@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Button, message, Badge, Space, Collapse, Typography, theme, Divider, Modal } from 'antd';
+import { Card, Col, Row, Statistic, Button, App, Badge, Space, Collapse, Typography, theme, Divider, Modal } from 'antd';
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -15,12 +15,11 @@ import {
 import axios from 'axios';
 import LogViewer from './LogViewer';
 
-const { Panel } = Collapse;
 const { Title, Text } = Typography;
-const { confirm } = Modal;
 
 const Dashboard = () => {
   const { token } = theme.useToken();
+  const { message, modal } = App.useApp();
   const [stats, setStats] = useState({ total_items: 0, total_history: 0 });
   const [scraperStatus, setScraperStatus] = useState({ scheduler_status: 'unknown', is_running: false, next_run: null });
   const [loading, setLoading] = useState(false);
@@ -46,7 +45,7 @@ const Dashboard = () => {
   // 1. Continuous Scrape
   const handleContinuousScrape = async () => {
     if (scraperStatus.scheduler_status === 'running') {
-      confirm({
+      modal.confirm({
         title: '确认启动常驻爬虫?',
         icon: <ExclamationCircleOutlined />,
         content: '检测到定时调度正在运行。启动常驻爬虫将自动暂停定时调度任务。',
@@ -160,7 +159,7 @@ const Dashboard = () => {
     <div>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
-          <Card bordered={false} hoverable style={{ height: '100%' }}>
+          <Card variant="borderless" hoverable style={{ height: '100%' }}>
             <Statistic
               title="已追踪商品"
               value={stats.total_items}
@@ -169,7 +168,7 @@ const Dashboard = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered={false} hoverable style={{ height: '100%' }}>
+          <Card variant="borderless" hoverable style={{ height: '100%' }}>
             <Statistic
               title="历史价格记录"
               value={stats.total_history}
@@ -178,7 +177,7 @@ const Dashboard = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered={false} hoverable style={{ height: '100%' }}>
+          <Card variant="borderless" hoverable style={{ height: '100%' }}>
             <Statistic
               title="爬虫状态"
               value={isScraping ? "正在爬取" : "空闲中"}
@@ -283,11 +282,13 @@ const Dashboard = () => {
 
         <Divider />
 
-        <Collapse ghost defaultActiveKey={['1']}>
-          <Panel header="实时系统日志" key="1">
-             <LogViewer />
-          </Panel>
-        </Collapse>
+        <Collapse ghost defaultActiveKey={['1']} items={[
+          {
+            key: '1',
+            label: '实时系统日志',
+            children: <LogViewer />
+          }
+        ]} />
       </Card>
     </div>
   );

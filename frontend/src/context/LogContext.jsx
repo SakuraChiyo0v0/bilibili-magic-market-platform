@@ -1,11 +1,12 @@
 import React, { createContext, useState, useEffect, useRef, useContext } from 'react';
-import { notification } from 'antd';
+import { App } from 'antd';
 
 const LogContext = createContext();
 
 export const useLogContext = () => useContext(LogContext);
 
 export const LogProvider = ({ children }) => {
+  const { notification } = App.useApp();
   const [logs, setLogs] = useState([]);
   const [connected, setConnected] = useState(false);
   const ws = useRef(null);

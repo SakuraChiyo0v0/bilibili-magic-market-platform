@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, theme, Typography, ConfigProvider } from 'antd';
+import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp } from 'antd';
 import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
@@ -94,11 +94,13 @@ export default function App() {
         },
       }}
     >
-      <LogProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </LogProvider>
+      <AntdApp>
+        <LogProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </LogProvider>
+      </AntdApp>
     </ConfigProvider>
   );
 }

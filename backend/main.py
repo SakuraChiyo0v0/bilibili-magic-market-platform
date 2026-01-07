@@ -9,6 +9,7 @@ import asyncio
 import logging
 import json
 from logging.handlers import QueueHandler
+from contextlib import asynccontextmanager
 
 import queue
 from database import get_db, engine, SessionLocal
@@ -32,7 +33,137 @@ logging.getLogger('apscheduler').setLevel(logging.WARNING)
 # Init DB
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Bilibili Magic Market Scraper")
+# Scheduler
+scheduler = BackgroundScheduler()
+
+log_task = None
+
+async def process_log_queue():
+    try:
+        while True:
+            while not log_queue.empty():
+                try:
+                    record = log_queue.get_nowait()
+                    log_entry = {
+                        "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
+                        "level": record.levelname,
+                        "message": record.getMessage()
+                    }
+                    await manager.broadcast(log_entry)
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    print(f"Error processing log: {e}")
+            await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        pass
+
+def scheduled_scrape():
+    # Reset stop signal before starting
+    ScraperState.set_stop(False)
+
+    db = SessionLocal()
+    try:
+        # Get max_pages from config
+        config_pages = db.query(SystemConfig).filter(SystemConfig.key == "auto_scrape_max_pages").first()
+        max_pages = 50
+        if config_pages:
+            try:
+                max_pages = int(config_pages.value)
+            except:
+                pass
+
+        service = ScraperService(db)
+        logging.info(f"开始定时爬取任务 (最大 {max_pages} 页)...")
+        service.run_scrape(max_pages=max_pages)
+        logging.info("定时爬取任务完成。")
+    except Exception as e:
+        logging.error(f"定时爬取任务失败: {e}")
+    finally:
+        db.close()
+
+def manual_scrape_job():
+    # Reset stop signal
+    ScraperState.set_stop(False)
+
+    db = SessionLocal()
+    try:
+        service = ScraperService(db)
+        logging.info("开始手动爬取 (1页)...")
+        service.run_scrape(max_pages=1)
+        logging.info("手动爬取完成。")
+    finally:
+        db.close()
+
+def continuous_scrape_job():
+    # Reset stop signal
+    ScraperState.set_stop(False)
+
+    db = SessionLocal()
+    try:
+        service = ScraperService(db)
+        logging.info("开始常驻爬取任务 (无限循环)...")
+        service.run_scrape(max_pages=-1)
+        logging.info("常驻爬取任务已停止。")
+    finally:
+        # Resume scheduler if enabled in config
+        config_enabled = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
+        if config_enabled and config_enabled.value.lower() == "true":
+            job = scheduler.get_job('hourly_scrape')
+            if job:
+                job.resume()
+                logging.info("常驻任务结束，已恢复定时调度任务。")
+        db.close()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global log_task
+    # Start log processor
+    log_task = asyncio.create_task(process_log_queue())
+
+    db = SessionLocal()
+
+    # Get interval from DB or default to 60 minutes
+    config_interval = db.query(SystemConfig).filter(SystemConfig.key == "scrape_interval_minutes").first()
+    interval_minutes = 60
+    if config_interval:
+        try:
+            interval_minutes = int(config_interval.value)
+        except:
+            pass
+
+    # Get scheduler enabled state
+    config_enabled = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
+    scheduler_enabled = True # Default to True if not set
+    if config_enabled:
+        scheduler_enabled = config_enabled.value.lower() == "true"
+    else:
+        # Initialize default
+        db.add(SystemConfig(key="scheduler_enabled", value="true", description="Scheduler Enabled Status"))
+        db.commit()
+
+    db.close()
+
+    # Add job
+    job = scheduler.add_job(scheduled_scrape, 'interval', minutes=interval_minutes, id='hourly_scrape')
+
+    # Start scheduler but pause job if disabled
+    scheduler.start()
+    if not scheduler_enabled:
+        job.pause()
+        logging.info("调度器已启动，但根据配置任务已暂停。")
+    else:
+        logging.info("调度器已启动，任务激活。")
+
+    yield
+
+    # Shutdown logic
+    ScraperState.set_stop(True)
+    if log_task:
+        log_task.cancel()
+    scheduler.shutdown(wait=False)
+
+app = FastAPI(title="Bilibili Magic Market Scraper", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -42,9 +173,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Scheduler
-scheduler = BackgroundScheduler()
 
 # WebSocket Manager
 class ConnectionManager:
@@ -147,59 +275,6 @@ def continuous_scrape_job():
                 logging.info("常驻任务结束，已恢复定时调度任务。")
         db.close()
 
-@app.on_event("startup")
-async def startup_event():
-    global log_task
-    # Start log processor
-    log_task = asyncio.create_task(process_log_queue())
-
-    db = SessionLocal()
-
-    # Get interval from DB or default to 60 minutes
-    config_interval = db.query(SystemConfig).filter(SystemConfig.key == "scrape_interval_minutes").first()
-    interval_minutes = 60
-    if config_interval:
-        try:
-            interval_minutes = int(config_interval.value)
-        except:
-            pass
-
-    # Get scheduler enabled state
-    config_enabled = db.query(SystemConfig).filter(SystemConfig.key == "scheduler_enabled").first()
-    scheduler_enabled = True # Default to True if not set
-    if config_enabled:
-        scheduler_enabled = config_enabled.value.lower() == "true"
-    else:
-        # Initialize default
-        db.add(SystemConfig(key="scheduler_enabled", value="true", description="Scheduler Enabled Status"))
-        db.commit()
-
-    db.close()
-
-    # Add job
-    job = scheduler.add_job(scheduled_scrape, 'interval', minutes=interval_minutes, id='hourly_scrape')
-
-    # Start scheduler but pause job if disabled
-    scheduler.start()
-    if not scheduler_enabled:
-        job.pause()
-        logging.info("调度器已启动，但根据配置任务已暂停。")
-    else:
-        logging.info("调度器已启动，任务激活。")
-
-@app.on_event("shutdown")
-def shutdown_event():
-    global log_task
-    ScraperState.set_stop(True)
-    if log_task:
-        log_task.cancel()
-    scheduler.shutdown(wait=False)
-    if log_task:
-        log_task.cancel()
-
-    ScraperState.set_stop(True)
-    scheduler.shutdown(wait=False)
-
 # WebSocket for Logs
 @app.websocket("/ws/logs")
 async def websocket_endpoint(websocket: WebSocket):
@@ -264,8 +339,8 @@ def get_items(
     return {"items": items, "total": total}
 
 @app.get("/api/items/{goods_id}/listings", response_model=List[ListingResponse])
-def get_item_listings(goods_id: int, db: Session = Depends(get_db)):
-    listings = db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).all()
+def get_item_listings(goods_id: int, limit: int = 20, db: Session = Depends(get_db)):
+    listings = db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).limit(limit).all()
     return listings
 
 @app.get("/api/items/{goods_id}/history", response_model=List[PriceHistoryResponse])

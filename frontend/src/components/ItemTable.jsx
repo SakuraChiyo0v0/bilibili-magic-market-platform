@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, message, Modal, Form, InputNumber, Popconfirm, Tabs } from 'antd';
+import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs } from 'antd';
 import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
@@ -7,6 +7,7 @@ import axios from 'axios';
 const { Option } = Select;
 
 const ItemTable = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 

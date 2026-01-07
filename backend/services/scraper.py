@@ -22,6 +22,32 @@ class ScraperService:
         self.payload_template = self._get_payload_template()
         self.current_category_id = None # Track current category for this run
 
+    def _get_headers(self):
+        config = self.db.query(SystemConfig).filter(SystemConfig.key == "user_cookie").first()
+        cookie = config.value if config else ""
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Content-Type": "application/json",
+            "Cookie": cookie
+        }
+
+    def _get_payload_template(self):
+        config = self.db.query(SystemConfig).filter(SystemConfig.key == "payload_template").first()
+        if config:
+            try:
+                return json.loads(config.value)
+            except:
+                pass
+
+        # Default template
+        return {
+            "categoryFilter": "2312",
+            "priceFilters": [],
+            "discountFilters": [],
+            "sortType": "TIME_DESC",
+            "nextId": None
+        }
+
     # ... (other methods) ...
 
     def check_listings_validity(self, goods_id):
@@ -37,9 +63,10 @@ class ScraperService:
         product = self.db.query(Product).filter(Product.goods_id == goods_id).first()
         name = product.name if product else str(goods_id)
 
-        def check_single_listing(listing):
-            is_valid = self.is_item_valid(listing.c2c_id, name)
-            return listing, is_valid
+        def check_single_listing(c2c_id, item_name):
+            # This runs in a thread, do not access DB objects here
+            is_valid = self.is_item_valid(c2c_id, item_name)
+            return c2c_id, is_valid
 
         # Check in batches until we find enough valid listings
         batch_size = 5
@@ -49,18 +76,30 @@ class ScraperService:
 
             batch = listings[i : i + batch_size]
 
+            # Map c2c_id back to listing object for deletion
+            c2c_id_to_listing = {l.c2c_id: l for l in batch}
+
             # Use ThreadPoolExecutor for concurrent checks within the batch
             with ThreadPoolExecutor(max_workers=batch_size) as executor:
-                future_to_listing = {executor.submit(check_single_listing, listing): listing for listing in batch}
+                # Pass primitive types (c2c_id, name) instead of SQLAlchemy objects
+                future_to_c2c_id = {
+                    executor.submit(check_single_listing, l.c2c_id, name): l.c2c_id
+                    for l in batch
+                }
 
-                for future in as_completed(future_to_listing):
-                    listing, is_valid = future.result()
-                    checked_count += 1
-                    if is_valid:
-                        valid_count += 1
-                    else:
-                        self.db.delete(listing)
-                        removed_count += 1
+                for future in as_completed(future_to_c2c_id):
+                    try:
+                        c2c_id, is_valid = future.result()
+                        checked_count += 1
+                        if is_valid:
+                            valid_count += 1
+                        else:
+                            listing_to_delete = c2c_id_to_listing.get(c2c_id)
+                            if listing_to_delete:
+                                self.db.delete(listing_to_delete)
+                                removed_count += 1
+                    except Exception as e:
+                        logger.error(f"Error checking listing validity: {e}")
 
         if removed_count > 0:
             self.db.commit()
@@ -246,7 +285,7 @@ class ScraperService:
             request_interval = self._get_request_interval()
 
             # Validate Cookie
-            if 'cookie' not in self.headers or not self.headers['cookie'] or len(self.headers['cookie']) < 10:
+            if 'Cookie' not in self.headers or not self.headers['Cookie'] or len(self.headers['Cookie']) < 10:
                 logger.error("❌ 未检测到有效的 Cookie！请先在设置页面配置 Bilibili Cookie。")
                 return
 
@@ -337,7 +376,7 @@ class ScraperService:
                             if result.get("is_price_changed"):
                                 updated_count += 1
 
-                    logger.info(f"✅ 第 {page_count} 页处理完成。新增: {new_count}, 价格变动: {updated_count}")
+                    logger.info(f"✅ 第 {page_count} 页处理完成。共 {len(items)} 个商品。新增: {new_count}, 价格变动: {updated_count}")
 
                     if not next_id:
                         logger.info("已到达列表末尾。")

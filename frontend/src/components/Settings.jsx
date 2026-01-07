@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, message, Card, Checkbox, Divider, InputNumber, Switch, Select, Row, Col, Tooltip, Typography, Alert, Space } from 'antd';
+import { Form, Input, Button, App, Card, Checkbox, Divider, InputNumber, Switch, Select, Row, Col, Tooltip, Typography, Alert, Space } from 'antd';
 import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -7,6 +7,7 @@ const { Option } = Select;
 const { Title, Text } = Typography;
 
 const Settings = () => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
