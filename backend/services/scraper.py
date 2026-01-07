@@ -28,6 +28,8 @@ class ScraperService:
         return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Content-Type": "application/json",
+            "Referer": "https://mall.bilibili.com/neul-next/index.html?page=magic-market_index",
+            "Origin": "https://mall.bilibili.com",
             "Cookie": cookie
         }
 
@@ -52,12 +54,43 @@ class ScraperService:
         url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/items/queryC2cItemsDetail"
         try:
             payload = {"c2cItemsId": int(c2c_id)}
-            # Use a shorter timeout for validity
-            # checks
-            response = requests.get(url, headers=self.headers, params=payload, timeout=5)
 
+            # Construct specific headers for this GET request
+            # Copy base headers but remove Origin (not needed for GET) and update Referer
+            request_headers = self.headers.copy()
+            if "Origin" in request_headers:
+                del request_headers["Origin"]
+            # Remove Content-Type for GET requests as it's not standard and might trigger WAF
+            if "Content-Type" in request_headers:
+                del request_headers["Content-Type"]
+
+            request_headers["Referer"] = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={c2c_id}&from=market_index"
+            request_headers["Accept"] = "application/json, text/plain, */*"
+            request_headers["Sec-Fetch-Dest"] = "empty"
+            request_headers["Sec-Fetch-Mode"] = "cors"
+            request_headers["Sec-Fetch-Site"] = "same-origin"
+
+            # Add a small random delay to avoid burst requests triggering WAF
+            time.sleep(random.uniform(0.5, 1.5))
+
+            # Use a shorter timeout for validity checks
+            response = requests.get(url, headers=request_headers, params=payload, timeout=5)
             if response.status_code != 200:
                 logger.warning(f"Item {c2c_id} check failed: HTTP {response.status_code}")
+                if response.status_code == 412:
+                    logger.warning(f"Headers sent: {request_headers}")
+                    logger.warning(f"Response content: {response.text[:200]}")
+                    # 412 Precondition Failed (Rate Limit/WAF) -> Assume valid to prevent deletion
+                    return True
+                if response.status_code == 429:
+                    logger.warning("Rate limit exceeded (429) during validity check.")
+                    # 429 Too Many Requests -> Assume valid
+                    return True
+                if response.status_code >= 500:
+                    # Server error -> Assume valid
+                    return True
+
+                # For 404 or other 4xx errors, we assume invalid
                 return False
 
             data = response.json()
@@ -153,8 +186,9 @@ class ScraperService:
                     product.min_price = min_listing.price
                     product.link = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={min_listing.c2c_id}&from=market_index"
                 else:
-                    # No listings left
-                    pass
+                    # No listings left - Clear the link to indicate out of stock
+                    product.link = None
+                    # We keep min_price as a reference to the last known price
                 self.db.commit()
 
         return {"checked": checked_count, "removed": removed_count}
@@ -276,39 +310,8 @@ class ScraperService:
             # Find the true minimum price from all active listings
             self.db.flush() # Ensure previous adds are visible
 
-            # Check if auto-check is enabled
-            auto_check_config = self.db.query(SystemConfig).filter(SystemConfig.key == "auto_check_min_price").first()
-            auto_check_enabled = auto_check_config.value.lower() == "true" if auto_check_config else False
-
-            # Loop to find a valid minimum listing
-            while True:
-                min_listing = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
-
-                if not min_listing:
-                    break
-
-                # If the minimum listing is the one we just processed, it's valid (we just saw it)
-                if min_listing.c2c_id == c2c_id:
-                    break
-
-                # If auto-check is disabled, we trust the DB and break
-                if not auto_check_enabled:
-                    break
-
-                # If the minimum listing is different, it might be stale.
-                # Check validity
-                logger.info(f"🔍 检查最低价有效性: {min_listing.c2c_id} (当前爬取: {c2c_id})")
-                if self.is_item_valid(min_listing.c2c_id, name):
-                    # It's valid, so it really is the cheapest.
-                    # Update its time so we don't check it again too soon?
-                    min_listing.update_time = datetime.now()
-                    break
-                else:
-                    # It's invalid! Delete it.
-                    logger.info(f"🗑️ 移除失效最低价: {min_listing.c2c_id}")
-                    self.db.delete(min_listing)
-                    self.db.flush() # Flush delete so next query sees it
-                    # Loop continues to find next cheapest
+            # Simply get the minimum listing from DB
+            min_listing = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
 
             if min_listing:
                 old_price = product.min_price
@@ -331,6 +334,34 @@ class ScraperService:
                         logger.info(f"📉 降价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (降幅 {abs(percent):.1f}%)")
                     else:
                         logger.info(f"📈 涨价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (旧货已出)")
+            else:
+                # No listings left!
+                # This means all listings (including the one we just scraped?) were invalid or deleted.
+                # Wait, if we just scraped 'c2c_id', it should be in the DB unless it was deleted.
+                # But 'c2c_id' is added at step 2.
+                # If 'c2c_id' was added, min_listing should at least find that one.
+                # Unless 'c2c_id' itself was found invalid in the loop?
+                # But the loop only checks listings that are CHEAPER than 'c2c_id' (if we optimize)
+                # OR the loop checks min_listing.
+
+                # If we are here, it means min_listing is None.
+                # That implies the DB has NO listings for this goods_id.
+                # But we just added one in Step 2!
+                # So this case is extremely rare (maybe transaction isolation issue or it was deleted immediately).
+
+                # However, if we consider the case where we might delete the JUST added listing?
+                # The loop condition `if min_listing.c2c_id == c2c_id: break` prevents deleting the current item
+                # (assuming current item is valid because we just scraped it).
+                # BUT, `process_item` doesn't check validity of the current item `c2c_id` explicitly via API,
+                # it assumes it's valid because it appeared in the list.
+
+                # So min_listing should at least be the current item.
+                # If min_listing is None, it means something went wrong or the item was deleted concurrently.
+
+                # Let's handle the case where there are truly no listings (e.g. if we change logic later).
+                # If no listings, we should probably set min_price to None or 0?
+                # But Product model defines min_price as Float.
+                pass
 
             # Final commit for the item
             self.db.commit()

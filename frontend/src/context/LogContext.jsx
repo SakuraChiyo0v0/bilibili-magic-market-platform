@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useRef, useContext } from 'react';
 import { App } from 'antd';
+import axios from 'axios';
 
 const LogContext = createContext();
 
@@ -8,90 +9,84 @@ export const useLogContext = () => useContext(LogContext);
 export const LogProvider = ({ children }) => {
   const { notification } = App.useApp();
   const [logs, setLogs] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const ws = useRef(null);
-  const reconnectTimeout = useRef(null);
+  const [connected, setConnected] = useState(false); // Used to indicate polling status
+  const lastTimestampRef = useRef(0);
+  const intervalRef = useRef(null);
+  const isPollingRef = useRef(false);
 
-  const connect = () => {
-    if (reconnectTimeout.current) {
-      clearTimeout(reconnectTimeout.current);
-      reconnectTimeout.current = null;
-    }
+  const fetchLogs = async () => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // host includes port if present
-    const wsUrl = `${protocol}//${host}/ws/logs`;
-
-    if (ws.current) {
-      ws.current.onclose = null;
-      ws.current.close();
-    }
-
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      setConnected(true);
-      console.log('WebSocket Connected');
-    };
-
-    ws.current.onclose = () => {
-      setConnected(false);
-      console.log('WebSocket Disconnected');
-      reconnectTimeout.current = setTimeout(connect, 3000);
-    };
-
-    ws.current.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-      if (ws.current) ws.current.close();
-    };
-
-    ws.current.onmessage = (event) => {
-      const log = JSON.parse(event.data);
-
-      if (log.message && log.message.includes("RATE_LIMIT_EXCEEDED")) {
-           notification.warning({
-              message: '请求过于频繁',
-              description: '检测到 429 错误，已自动增加请求间隔 1 秒。',
-              duration: 5,
-           });
-      }
-
-      setLogs((prevLogs) => {
-        // Simple deduplication based on time and message
-        const isDuplicate = prevLogs.length > 0 &&
-          prevLogs[prevLogs.length - 1].time === log.time &&
-          prevLogs[prevLogs.length - 1].message === log.message;
-
-        if (isDuplicate) return prevLogs;
-
-        const newLogs = [...prevLogs, log];
-        if (newLogs.length > 1000) { // Keep last 1000 logs
-          return newLogs.slice(newLogs.length - 1000);
-        }
-        return newLogs;
+    try {
+      const res = await axios.get('/api/logs', {
+        params: { since: lastTimestampRef.current }
       });
-    };
+
+      setConnected(true);
+      const newLogs = res.data;
+
+      if (newLogs.length > 0) {
+        // Update timestamp to the latest log's timestamp
+        lastTimestampRef.current = newLogs[newLogs.length - 1].timestamp;
+
+        setLogs((prevLogs) => {
+          // Merge and keep last 1000
+          const merged = [...prevLogs, ...newLogs];
+          return merged.slice(-1000);
+        });
+
+        // Check for specific alerts in new logs
+        newLogs.forEach(log => {
+             if (log.message && log.message.includes("RATE_LIMIT_EXCEEDED")) {
+               notification.warning({
+                  message: '请求过于频繁',
+                  description: '检测到 429 错误，已自动增加请求间隔 1 秒。',
+                  duration: 5,
+               });
+            }
+        });
+      }
+    } catch (error) {
+      console.error("Poll logs error:", error);
+      setConnected(false);
+    } finally {
+      isPollingRef.current = false;
+    }
+  };
+
+  const startPolling = () => {
+    stopPolling();
+    // Initial fetch
+    fetchLogs();
+    // Poll every 1 second
+    intervalRef.current = setInterval(fetchLogs, 1000);
+  };
+
+  const stopPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
   };
 
   useEffect(() => {
-    connect();
-
-    return () => {
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-      if (ws.current) {
-        ws.current.onclose = null;
-        ws.current.close();
-      }
-    };
+    startPolling();
+    return () => stopPolling();
   }, []);
 
   const reconnect = () => {
+    // Reset timestamp to re-fetch recent logs or just continue?
+    // Let's just restart polling
     setConnected(false);
-    connect();
+    startPolling();
   };
 
   const clearLogs = () => {
     setLogs([]);
+    // Optional: Reset timestamp to now? Or keep fetching new ones?
+    // If we clear UI logs, we probably still want to fetch *new* logs from now on.
+    // But if we don't reset timestamp, we won't get old logs again (which is correct).
   };
 
   return (

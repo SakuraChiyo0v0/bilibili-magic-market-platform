@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import case
+from sqlalchemy import case, func
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -19,44 +19,19 @@ from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate,
 from services.scraper import ScraperService
 from state import ScraperState
 
-log_queue = queue.Queue()
-queue_handler = QueueHandler(log_queue)
-root_logger = logging.getLogger()
+from collections import deque
 
-# Avoid adding duplicate handlers
-if not any(isinstance(h, QueueHandler) for h in root_logger.handlers):
-    root_logger.addHandler(queue_handler)
+# ... (imports)
 
-root_logger.setLevel(logging.INFO)
-logging.getLogger('apscheduler').setLevel(logging.WARNING)
+# Log Storage (In-Memory)
+LOG_HISTORY_SIZE = 1000
+log_history = deque(maxlen=LOG_HISTORY_SIZE)
 
 # Init DB
 Base.metadata.create_all(bind=engine)
 
 # Scheduler
 scheduler = BackgroundScheduler()
-
-log_task = None
-
-async def process_log_queue():
-    try:
-        while True:
-            while not log_queue.empty():
-                try:
-                    record = log_queue.get_nowait()
-                    log_entry = {
-                        "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
-                        "level": record.levelname,
-                        "message": record.getMessage()
-                    }
-                    await manager.broadcast(log_entry)
-                except queue.Empty:
-                    break
-                except Exception as e:
-                    print(f"Error processing log: {e}")
-            await asyncio.sleep(0.1)
-    except asyncio.CancelledError:
-        pass
 
 def scheduled_scrape():
     # Reset stop signal before starting
@@ -174,49 +149,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# WebSocket Manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
+# WebSocket Manager removed
+# manager = ConnectionManager()
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections[:]: # Iterate over copy
-            try:
-                await connection.send_json(message)
-            except Exception as e:
-                self.disconnect(connection)
-
-manager = ConnectionManager()
-
-log_task = None
-
-async def process_log_queue():
-    try:
-        while True:
-            while not log_queue.empty():
-                try:
-                    record = log_queue.get_nowait()
-                    log_entry = {
-                        "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
-                        "level": record.levelname,
-                        "message": record.getMessage()
-                    }
-                    await manager.broadcast(log_entry)
-                except queue.Empty:
-                    break
-                except Exception as e:
-                    print(f"Error processing log: {e}")
-            await asyncio.sleep(0.1)
-    except asyncio.CancelledError:
-        pass
+# Old process_log_queue removed (replaced by new one below)
 
 def scheduled_scrape():
     # Reset stop signal before starting
@@ -275,25 +211,59 @@ def continuous_scrape_job():
                 logging.info("常驻任务结束，已恢复定时调度任务。")
         db.close()
 
-# WebSocket for Logs
-@app.websocket("/ws/logs")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    # Send a welcome message to confirm connection
-    try:
-        await websocket.send_json({
-            "time": datetime.now().strftime('%H:%M:%S'),
-            "level": "INFO",
-            "message": "Log WebSocket Connected."
-        })
-    except Exception as e:
-        print(f"Error sending welcome message: {e}")
+# Log Queue Processing
+log_queue = queue.Queue()
+queue_handler = QueueHandler(log_queue)
+root_logger = logging.getLogger()
 
+# Avoid adding duplicate handlers
+if not any(isinstance(h, QueueHandler) for h in root_logger.handlers):
+    root_logger.addHandler(queue_handler)
+
+root_logger.setLevel(logging.INFO)
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
+
+log_task = None
+
+async def process_log_queue():
     try:
         while True:
-            await websocket.receive_text() # Keep connection open
-    except Exception:
-        manager.disconnect(websocket)
+            while not log_queue.empty():
+                try:
+                    record = log_queue.get_nowait()
+                    log_entry = {
+                        "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
+                        "level": record.levelname,
+                        "message": record.getMessage(),
+                        "timestamp": record.created
+                    }
+                    log_history.append(log_entry)
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    print(f"Error processing log: {e}")
+            await asyncio.sleep(0.5)
+    except asyncio.CancelledError:
+        pass
+
+# ... (scrape functions)
+
+# HTTP Log Endpoint
+@app.get("/api/logs")
+def get_logs(since: float = 0):
+    """
+    Get logs since a specific timestamp.
+    If since is 0, returns the last 100 logs.
+    """
+    logs = list(log_history)
+
+    if since > 0:
+        # Filter logs newer than 'since'
+        new_logs = [log for log in logs if log['timestamp'] > since]
+        return new_logs
+    else:
+        # Return last 100 logs for initial load
+        return logs[-100:]
 
 # Endpoints
 
@@ -430,7 +400,36 @@ def trigger_scrape(db: Session = Depends(get_db)):
 def get_stats(db: Session = Depends(get_db)):
     total_items = db.query(Product).count()
     total_history = db.query(PriceHistory).count()
-    return {"total_items": total_items, "total_history": total_history}
+
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # New History Today
+    new_history_today = db.query(PriceHistory).filter(PriceHistory.record_time >= today_start).count()
+
+    # New Items Today: Items where min(record_time) >= today_start
+    new_items_today = db.query(PriceHistory.goods_id)\
+        .group_by(PriceHistory.goods_id)\
+        .having(func.min(PriceHistory.record_time) >= today_start)\
+        .count()
+
+    return {
+        "total_items": total_items,
+        "total_history": total_history,
+        "new_items_today": new_items_today,
+        "new_history_today": new_history_today
+    }
+
+@app.get("/api/items/today/new", response_model=List[ProductResponse])
+def get_today_new_items(limit: int = 20, db: Session = Depends(get_db)):
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    subquery = db.query(PriceHistory.goods_id)\
+        .group_by(PriceHistory.goods_id)\
+        .having(func.min(PriceHistory.record_time) >= today_start)\
+        .subquery()
+
+    items = db.query(Product).join(subquery, Product.goods_id == subquery.c.goods_id).limit(limit).all()
+    return items
 
 @app.get("/api/config/{key}")
 def get_config(key: str, db: Session = Depends(get_db)):

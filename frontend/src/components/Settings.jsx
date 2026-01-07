@@ -82,12 +82,12 @@ const Settings = () => {
         form.setFieldsValue({ table_page_size: 50 });
       }
 
-      // Fetch Auto Check Min Price
+      // Fetch Check Validity On Click
       try {
-        const autoCheckRes = await axios.get('/api/config/auto_check_min_price');
-        form.setFieldsValue({ auto_check_min_price: autoCheckRes.data.value === 'true' });
+        const checkRes = await axios.get('/api/config/check_validity_on_click');
+        form.setFieldsValue({ check_validity_on_click: checkRes.data.value === 'true' });
       } catch (e) {
-        form.setFieldsValue({ auto_check_min_price: false });
+        form.setFieldsValue({ check_validity_on_click: false });
       }
 
       // Fetch Filters
@@ -157,8 +157,8 @@ const Settings = () => {
       // Save Page Size
       await axios.post('/api/config', { key: 'table_page_size', value: String(values.table_page_size) });
 
-      // Save Auto Check Min Price
-      await axios.post('/api/config', { key: 'auto_check_min_price', value: values.auto_check_min_price ? 'true' : 'false' });
+      // Save Check Validity On Click
+      await axios.post('/api/config', { key: 'check_validity_on_click', value: values.check_validity_on_click ? 'true' : 'false' });
 
       // Save Filters
       const filterSettings = {
@@ -303,11 +303,11 @@ const Settings = () => {
                 </Col>
                 <Col span={24}>
                   <Form.Item
-                    name="auto_check_min_price"
+                    name="check_validity_on_click"
                     label={
                       <Space>
-                        自动检查最低价有效性
-                        <Tooltip title="开启后，当爬虫发现更低价格的挂单时，会自动检查该挂单是否有效。如果失效（已售出），将自动移除并更新为真实的最低价。">
+                        详情页自动检查有效性
+                        <Tooltip title="开启后，点击商品详情或链接时，会自动向 Bilibili 发送请求检查链接是否有效。关闭此功能可最大程度避免被风控。">
                           <QuestionCircleOutlined style={{ color: '#999' }} />
                         </Tooltip>
                       </Space>

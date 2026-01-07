@@ -64,3 +64,5 @@ class ConfigUpdate(BaseModel):
 class StatsResponse(BaseModel):
     total_items: int
     total_history: int
+    new_items_today: int
+    new_history_today: int

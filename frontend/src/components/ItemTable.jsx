@@ -150,14 +150,20 @@ const ItemTable = () => {
       setListings(res.data);
       setListingsLoading(false); // Stop loading spinner so user can see data
 
-      // 2. Trigger validity check in background
+      // 2. Check config to see if we should trigger validity check
       try {
-          const checkRes = await axios.post(`/api/items/${goods_id}/check_validity`);
-          if (checkRes.data.removed > 0) {
-              message.info(`已自动清理 ${checkRes.data.removed} 个失效链接，正在刷新...`);
-              // 3. Reload data if changes occurred
-              const newRes = await axios.get(`/api/items/${goods_id}/listings`);
-              setListings(newRes.data);
+          const configRes = await axios.get('/api/config/check_validity_on_click');
+          const shouldCheck = configRes.data.value === 'true';
+
+          if (shouldCheck) {
+              // Trigger validity check in background
+              const checkRes = await axios.post(`/api/items/${goods_id}/check_validity`);
+              if (checkRes.data.removed > 0) {
+                  message.info(`已自动清理 ${checkRes.data.removed} 个失效链接，正在刷新...`);
+                  // 3. Reload data if changes occurred
+                  const newRes = await axios.get(`/api/items/${goods_id}/listings`);
+                  setListings(newRes.data);
+              }
           }
       } catch (e) {
           console.error("Validity check failed", e);
