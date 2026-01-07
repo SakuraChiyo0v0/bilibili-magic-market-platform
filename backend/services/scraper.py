@@ -28,9 +28,8 @@ class ScraperService:
         # Get all listings ordered by price
         listings = self.db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).all()
 
-        # Only check top 5 cheapest listings to save resources
-        listings_to_check = listings[:5]
-
+        target_valid_count = 5
+        valid_count = 0
         checked_count = 0
         removed_count = 0
 
@@ -42,19 +41,26 @@ class ScraperService:
             is_valid = self.is_item_valid(listing.c2c_id, name)
             return listing, is_valid
 
-        # Use ThreadPoolExecutor for concurrent checks
-        # Limit max_workers to avoid overwhelming the server or getting banned
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_listing = {executor.submit(check_single_listing, listing): listing for listing in listings_to_check}
+        # Check in batches until we find enough valid listings
+        batch_size = 5
+        for i in range(0, len(listings), batch_size):
+            if valid_count >= target_valid_count:
+                break
 
-            for future in as_completed(future_to_listing):
-                listing, is_valid = future.result()
-                checked_count += 1
-                if not is_valid:
-                    # Need to merge back to session because objects from query might be detached or thread-local issues
-                    # But here we are in the same thread context for db operations
-                    self.db.delete(listing)
-                    removed_count += 1
+            batch = listings[i : i + batch_size]
+
+            # Use ThreadPoolExecutor for concurrent checks within the batch
+            with ThreadPoolExecutor(max_workers=batch_size) as executor:
+                future_to_listing = {executor.submit(check_single_listing, listing): listing for listing in batch}
+
+                for future in as_completed(future_to_listing):
+                    listing, is_valid = future.result()
+                    checked_count += 1
+                    if is_valid:
+                        valid_count += 1
+                    else:
+                        self.db.delete(listing)
+                        removed_count += 1
 
         if removed_count > 0:
             self.db.commit()
