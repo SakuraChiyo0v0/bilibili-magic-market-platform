@@ -41,41 +41,48 @@ const ItemTable = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   useEffect(() => {
-    const loadConfig = async () => {
+    const init = async () => {
+      let currentShowImages = true;
+      let currentPageSize = 50;
+
+      // 1. Load Config
       try {
         // Load Show Images
         try {
           const imgRes = await axios.get('/api/config/show_images');
           if (imgRes.data.value !== null) {
-            setShowImages(imgRes.data.value !== 'false');
+            currentShowImages = imgRes.data.value !== 'false';
           } else {
-             // Fallback to local storage if API returns null (not set yet)
              const savedShowImages = localStorage.getItem('show_images');
              if (savedShowImages !== null) {
-               setShowImages(savedShowImages !== 'false');
+               currentShowImages = savedShowImages !== 'false';
              }
           }
         } catch (e) {
-             // Fallback to local storage on error
              const savedShowImages = localStorage.getItem('show_images');
              if (savedShowImages !== null) {
-               setShowImages(savedShowImages !== 'false');
+               currentShowImages = savedShowImages !== 'false';
              }
         }
+        setShowImages(currentShowImages);
 
         // Load Page Size
         try {
           const sizeRes = await axios.get('/api/config/table_page_size');
           if (sizeRes.data.value) {
-            const size = parseInt(sizeRes.data.value);
-            setPagination(prev => ({ ...prev, pageSize: size }));
+            currentPageSize = parseInt(sizeRes.data.value);
+            setPagination(prev => ({ ...prev, pageSize: currentPageSize }));
           }
         } catch (e) {}
       } catch (error) {
         console.error(error);
       }
+
+      // 2. Fetch Data
+      fetchData(pagination.current, currentPageSize);
     };
-    loadConfig();
+
+    init();
   }, []);
 
   const fetchData = async (page = pagination.current, pageSize = pagination.pageSize, search = searchText, sort = sortBy, order = sortOrder) => {
@@ -146,10 +153,6 @@ const ItemTable = () => {
     setListings([]);
     setPriceHistory([]);
   };
-
-  useEffect(() => {
-    fetchData(pagination.current, pagination.pageSize);
-  }, []);
 
   const handleTableChange = (newPagination) => {
     fetchData(newPagination.current, newPagination.pageSize);

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, message, Card, Checkbox, Divider, InputNumber, Switch } from 'antd';
+import { Form, Input, Button, message, Card, Checkbox, Divider, InputNumber, Switch, Select } from 'antd';
 import axios from 'axios';
+
+const { Option } = Select;
 
 const Settings = () => {
   const [form] = Form.useForm();
@@ -13,6 +15,14 @@ const Settings = () => {
     { label: '50-100元', value: '5000-10000' },
     { label: '100-200元', value: '10000-20000' },
     { label: '200元以上', value: '20000-0' },
+  ];
+
+  const categoryOptions = [
+    { label: '手办 (2312)', value: '2312' },
+    { label: '模型 (2066)', value: '2066' },
+    { label: '周边 (2331)', value: '2331' },
+    { label: '3C (2273)', value: '2273' },
+    { label: '福袋 (fudai_cate_id)', value: 'fudai_cate_id' },
   ];
 
   const fetchConfig = async () => {
@@ -61,6 +71,14 @@ const Settings = () => {
         form.setFieldsValue({ auto_scrape_max_pages: 50 });
       }
 
+      // Fetch Page Size
+      try {
+        const pageSizeRes = await axios.get('/api/config/table_page_size');
+        form.setFieldsValue({ table_page_size: pageSizeRes.data.value });
+      } catch (e) {
+        form.setFieldsValue({ table_page_size: 50 });
+      }
+
       // Fetch Filters
       try {
         const filterRes = await axios.get('/api/config/filter_settings');
@@ -104,6 +122,9 @@ const Settings = () => {
 
       // Save Max Pages
       await axios.post('/api/config', { key: 'auto_scrape_max_pages', value: String(values.auto_scrape_max_pages) });
+
+      // Save Page Size
+      await axios.post('/api/config', { key: 'table_page_size', value: String(values.table_page_size) });
 
       // Save Filters
       const filterSettings = {
@@ -196,10 +217,10 @@ const Settings = () => {
         <Form.Item
           name="category"
           label="分类 ID"
-          extra="默认为 2312 (魔力赏市场)"
-          rules={[{ required: true, message: '请输入分类 ID' }]}
+          extra="选择要爬取的商品分类，默认为手办 (2312)。"
+          rules={[{ required: true, message: '请选择分类 ID' }]}
         >
-          <Input />
+          <Select options={categoryOptions} />
         </Form.Item>
 
         <Form.Item

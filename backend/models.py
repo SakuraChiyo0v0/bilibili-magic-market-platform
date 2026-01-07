@@ -10,6 +10,7 @@ class Product(Base):
     name = Column(String(255), index=True)
     img = Column(String(512))
     market_price = Column(Float)
+    category = Column(String(50), default="2312") # 商品分类
 
     # Cache fields for sorting/display
     min_price = Column(Float) # 最低价缓存

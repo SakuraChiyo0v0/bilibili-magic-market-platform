@@ -146,6 +146,17 @@ class ScraperService:
 
             # 1. Upsert Product
             product = self.db.query(Product).filter(Product.goods_id == goods_id).first()
+
+            # Get current category from config
+            current_category = "2312"
+            filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
+            if filter_config:
+                try:
+                    settings = json.loads(filter_config.value)
+                    current_category = settings.get("category", "2312")
+                except:
+                    pass
+
             if not product:
                 product = Product(
                     goods_id=goods_id,
@@ -153,6 +164,7 @@ class ScraperService:
                     img=img,
                     market_price=market_price,
                     min_price=price, # Initial min price
+                    category=current_category,
                     update_time=datetime.now()
                 )
                 self.db.add(product)
@@ -162,6 +174,9 @@ class ScraperService:
             else:
                 # Update basic info
                 product.update_time = datetime.now()
+                # Update category if it was default or empty
+                if not product.category or product.category == "2312":
+                     product.category = current_category
                 # self.db.commit() # Defer commit
 
             # 2. Upsert Listing

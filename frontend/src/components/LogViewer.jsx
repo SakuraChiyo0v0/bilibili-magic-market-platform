@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Badge, Button, Space, Tooltip, Typography } from 'antd';
-import { DeleteOutlined, VerticalAlignBottomOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { DeleteOutlined, VerticalAlignBottomOutlined, PauseCircleOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useLogContext } from '../context/LogContext';
 
 const { Text } = Typography;
 
 const LogViewer = () => {
-  const { logs, connected, clearLogs } = useLogContext();
+  const { logs, connected, clearLogs, reconnect } = useLogContext();
   const [autoScroll, setAutoScroll] = useState(true);
   const listRef = useRef(null);
 
@@ -53,6 +53,15 @@ const LogViewer = () => {
           <span style={{ color: '#666', fontSize: 12, marginLeft: 8 }}>{logs.length} 条记录</span>
         </Space>
         <Space>
+          <Tooltip title="重新连接">
+            <Button
+              type="text"
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={reconnect}
+              style={{ color: '#ccc' }}
+            />
+          </Tooltip>
           <Tooltip title={autoScroll ? "暂停自动滚动" : "开启自动滚动"}>
             <Button
               type="text"
