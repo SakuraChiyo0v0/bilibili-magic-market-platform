@@ -5,8 +5,8 @@ services:
     build: ./backend
     container_name: magic-market-backend
     restart: always
-    ports:
-      - "8111:8111"
+    # ports:
+    #   - "8111:8111"
     environment:
       - BMM_MYSQL_HOST=${BMM_MYSQL_HOST}
       - BMM_MYSQL_PORT=${BMM_MYSQL_PORT}

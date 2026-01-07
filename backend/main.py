@@ -279,6 +279,16 @@ def continuous_scrape_job():
 @app.websocket("/ws/logs")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    # Send a welcome message to confirm connection
+    try:
+        await websocket.send_json({
+            "time": datetime.now().strftime('%H:%M:%S'),
+            "level": "INFO",
+            "message": "Log WebSocket Connected."
+        })
+    except Exception as e:
+        print(f"Error sending welcome message: {e}")
+
     try:
         while True:
             await websocket.receive_text() # Keep connection open
