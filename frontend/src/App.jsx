@@ -12,20 +12,7 @@ const { Header, Content, Footer, Sider } = Layout;
 const { Title } = Typography;
 
 const DashboardPage = () => {
-  const items = [
-    {
-      key: '1',
-      label: <span><PieChartOutlined /> 数据概览</span>,
-      children: <Dashboard />,
-    },
-    {
-      key: '2',
-      label: <span><CodeOutlined /> 爬虫控制</span>,
-      children: <ControlPanel />,
-    },
-  ];
-
-  return <Tabs defaultActiveKey="1" items={items} />;
+  return <Dashboard />;
 };
 
 function AppContent() {
@@ -38,6 +25,7 @@ function AppContent() {
   const items = [
     { key: '/', icon: <PieChartOutlined />, label: <Link to="/">数据看板</Link> },
     { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items">商品列表</Link> },
+    { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> },
   ];
 
@@ -91,6 +79,7 @@ function AppContent() {
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/items" element={<ItemTable />} />
+              <Route path="/control" element={<ControlPanel />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </div>
