@@ -12,6 +12,11 @@ import asyncio
 import logging
 import json
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from logging.handlers import QueueHandler
 from contextlib import asynccontextmanager
 from jose import JWTError, jwt
@@ -19,9 +24,10 @@ from jose import JWTError, jwt
 import queue
 from database import get_db, engine, SessionLocal
 from models import Base, Product, PriceHistory, SystemConfig, Listing, User, Favorite, APIKey
-from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange, APIKeyCreate, APIKeyResponse, APIKeyCreated
+from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange, APIKeyCreate, APIKeyResponse, APIKeyCreated, EmailConfig
 from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM, generate_api_key, hash_api_key
 from services.scraper import ScraperService
+from services.notifier import NotifierService
 from state import ScraperState
 from limiter import api_limiter
 
@@ -242,13 +248,20 @@ def continuous_scrape_job():
 # Log Queue Processing
 log_queue = queue.Queue()
 queue_handler = QueueHandler(log_queue)
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(), # Output to console
+        queue_handler # Output to WebSocket queue
+    ]
+)
 root_logger = logging.getLogger()
-
-# Avoid adding duplicate handlers
-if not any(isinstance(h, QueueHandler) for h in root_logger.handlers):
-    root_logger.addHandler(queue_handler)
-
+# Ensure root logger level is INFO
 root_logger.setLevel(logging.INFO)
+
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
 log_task = None
@@ -417,6 +430,62 @@ def delete_api_key(key_id: int, current_user: User = Depends(get_current_user), 
 def get_system_status(db: Session = Depends(get_db)):
     user_count = db.query(User).count()
     return {"initialized": user_count > 0}
+
+@app.get("/api/system/email/config", response_model=EmailConfig)
+def get_email_config(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    # Retrieve from DB or Env
+    # Priority: DB > Env
+
+    def get_config_val(key, default=None):
+        # For SMTP settings, we ONLY read from Env as requested
+        return os.getenv(key.upper(), default)
+
+    # Check enabled status from DB
+    enabled_conf = db.query(SystemConfig).filter(SystemConfig.key == "email_notification_enabled").first()
+    enabled = enabled_conf.value.lower() == "true" if enabled_conf else False
+
+    return {
+        "smtp_server": get_config_val("smtp_server", "smtp.qq.com"),
+        "smtp_port": int(get_config_val("smtp_port", "465")),
+        "smtp_user": get_config_val("smtp_user", ""),
+        "smtp_password": "***" if get_config_val("smtp_password") else "", # Mask password
+        "smtp_from_name": get_config_val("smtp_from_name", "MagicMarket"),
+        "enabled": enabled
+    }
+
+@app.post("/api/system/email/config")
+def update_email_config(config: EmailConfig, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    # Only update the enabled toggle
+    db_conf = db.query(SystemConfig).filter(SystemConfig.key == "email_notification_enabled").first()
+    if not db_conf:
+        db_conf = SystemConfig(key="email_notification_enabled", value="true" if config.enabled else "false")
+        db.add(db_conf)
+    else:
+        db_conf.value = "true" if config.enabled else "false"
+
+    db.commit()
+    return {"message": "Email configuration updated"}
+
+@app.post("/api/system/email/test")
+def test_email(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.email:
+        raise HTTPException(status_code=400, detail="当前用户未设置邮箱，无法发送测试邮件")
+
+    # Reload config from DB to ensure we use latest settings
+    # NotifierService usually loads from Env, we need to update it to load from DB too
+    # For now, let's instantiate a new NotifierService which we will modify to support DB config
+    notifier = NotifierService(db) # Pass DB session to notifier
+
+    success = notifier.send_email(
+        to_email=current_user.email,
+        subject="Magic Market 测试邮件",
+        content="<h1>恭喜！</h1><p>您的邮件通知服务配置正确。</p>"
+    )
+
+    if success:
+        return {"message": "测试邮件已发送"}
+    else:
+        raise HTTPException(status_code=500, detail="发送失败，请检查后台日志")
 
 @app.post("/api/system/setup", response_model=UserResponse)
 def system_setup(user: UserCreate, db: Session = Depends(get_db)):

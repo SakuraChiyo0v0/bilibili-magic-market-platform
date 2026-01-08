@@ -115,3 +115,11 @@ class APIKeyResponse(APIKeyBase):
 
 class APIKeyCreated(APIKeyResponse):
     key: str # Only returned once
+
+class EmailConfig(BaseModel):
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_name: Optional[str] = None
+    enabled: bool = False # New field for toggle

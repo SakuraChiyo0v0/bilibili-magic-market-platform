@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, App, Card, Checkbox, Divider, InputNumber, Switch, Select, Row, Col, Tooltip, Typography, Alert, Space } from 'antd';
-import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined, LockOutlined } from '@ant-design/icons';
+import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined, LockOutlined, MailOutlined, SendOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -91,6 +91,14 @@ const Settings = () => {
         form.setFieldsValue({ check_validity_on_click: checkRes.data.value === 'true' });
       } catch (e) {
         form.setFieldsValue({ check_validity_on_click: false });
+      }
+
+      // Fetch Email Config (Admin only)
+      if (isAdmin) {
+        try {
+          const emailRes = await axios.get('/api/system/email/config');
+          form.setFieldsValue(emailRes.data);
+        } catch (e) {}
       }
 
       // Fetch Filters
@@ -277,6 +285,100 @@ const Settings = () => {
                 修改密码
               </Button>
             </Card>
+
+            {isAdmin && (
+              <Card
+                title={<Space><MailOutlined /> 邮件通知设置</Space>}
+                style={{ marginBottom: 16 }}
+                headStyle={{ backgroundColor: '#fafafa' }}
+              >
+                <Alert
+                  message="SMTP 配置说明"
+                  description="SMTP 服务器配置已通过环境变量 (.env) 锁定，此处仅供查看。如需修改，请编辑 .env 文件并重启服务。"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="smtp_server"
+                      label="SMTP 服务器"
+                    >
+                      <Input disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="smtp_port"
+                      label="SMTP 端口"
+                    >
+                      <InputNumber style={{ width: '100%' }} disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="smtp_user"
+                      label="邮箱账号"
+                    >
+                      <Input disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="smtp_password"
+                      label="授权码/密码"
+                    >
+                      <Input.Password disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item
+                      name="smtp_from_name"
+                      label="发件人名称"
+                    >
+                      <Input disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item
+                      name="enabled"
+                      label="开启降价邮件推送"
+                      valuePropName="checked"
+                    >
+                      <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <div style={{ textAlign: 'right' }}>
+                  <Button
+                    icon={<SendOutlined />}
+                    onClick={async () => {
+                      try {
+                        await axios.post('/api/system/email/test');
+                        message.success('测试邮件已发送，请查收');
+                      } catch (error) {
+                        message.error('发送失败: ' + (error.response?.data?.detail || error.message));
+                      }
+                    }}
+                    style={{ marginRight: 8 }}
+                  >
+                    发送测试邮件
+                  </Button>
+                  <Button type="primary" onClick={async () => {
+                    try {
+                      const values = await form.validateFields(['enabled']);
+                      await axios.post('/api/system/email/config', { enabled: values.enabled });
+                      message.success('配置已保存');
+                    } catch (error) {
+                      message.error('保存失败');
+                    }
+                  }}>
+                    保存配置
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {isAdmin && (
               <Card

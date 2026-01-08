@@ -5,9 +5,10 @@ import requests
 import random
 from sqlalchemy.orm import Session
 from datetime import datetime
-from models import Product, PriceHistory, SystemConfig, Listing
+from models import Product, PriceHistory, SystemConfig, Listing, User, Favorite
 from database import SessionLocal
 from state import ScraperState
+from services.notifier import NotifierService
 
 from sqlalchemy.exc import IntegrityError
 
@@ -21,6 +22,7 @@ class ScraperService:
         self.headers = self._get_headers()
         self.payload_template = self._get_payload_template()
         self.current_category_id = None # Track current category for this run
+        self.notifier = NotifierService()
 
     def _get_headers(self):
         config = self.db.query(SystemConfig).filter(SystemConfig.key == "user_cookie").first()
@@ -314,6 +316,25 @@ class ScraperService:
 
                     if diff < 0:
                         logger.info(f"📉 降价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (降幅 {abs(percent):.1f}%)")
+
+                        # Trigger Email Notification
+                        try:
+                            # Find users who favorited this item
+                            interested_users = self.db.query(User).join(Favorite, User.id == Favorite.user_id).filter(Favorite.goods_id == goods_id).all()
+
+                            for user in interested_users:
+                                if user.email:
+                                    # Send email (synchronous for now, but fast enough)
+                                    self.notifier.send_price_drop_notification(
+                                        user_email=user.email,
+                                        product_name=name,
+                                        old_price=old_price,
+                                        new_price=new_price,
+                                        link=new_link,
+                                        img_url=img
+                                    )
+                        except Exception as e:
+                            logger.error(f"发送通知失败: {e}")
                     else:
                         logger.info(f"📈 涨价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (旧货已出)")
             else:
