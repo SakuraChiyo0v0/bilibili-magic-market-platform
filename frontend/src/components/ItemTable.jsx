@@ -230,6 +230,26 @@ const ItemTable = () => {
     }
   };
 
+  const handleCheckDetailValidity = async () => {
+    if (!detailItem) return;
+    setListingsLoading(true);
+    try {
+      const res = await axios.post(`/api/items/${detailItem.goods_id}/check_validity`);
+      message.success(`检查完成，清理了 ${res.data.removed} 个失效链接`);
+      // Refresh detail data
+      fetchListings(detailItem.goods_id);
+      // Also refresh main table data to update min_price if changed
+      fetchData(pagination.current, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
+
+      // Update detailItem min_price locally if needed (optional, but good for UX)
+      // Actually fetchListings updates listings, but detailItem is state.
+      // We should probably re-fetch the product info too, but for now let's just refresh listings.
+    } catch (error) {
+      message.error('检查失败');
+      setListingsLoading(false);
+    }
+  };
+
   const showDetail = (item) => {
     setDetailItem(item);
     setIsDetailModalVisible(true);
@@ -461,7 +481,7 @@ const ItemTable = () => {
                   {diff > 0 && <Tag color="red">省¥{diff}</Tag>}
                 </>
               )}
-              {record.historical_low_price && (
+              {record.historical_low_price && (record.is_out_of_stock || record.min_price > record.historical_low_price) && (
                 <Tooltip title="历史最低价">
                   <Tag color="gold">史低: ¥{record.historical_low_price}</Tag>
                 </Tooltip>
@@ -671,7 +691,31 @@ const ItemTable = () => {
               <Col span={16}>
                 <p><strong>商品ID:</strong> {detailItem.goods_id}</p>
                 <p><strong>市场价:</strong> ¥{detailItem.market_price}</p>
-                <p><strong>当前最低价:</strong> <span style={{ color: 'red', fontSize: 18, fontWeight: 'bold' }}>¥{detailItem.min_price}</span></p>
+                <p>
+                  <strong>当前最低价:</strong>{' '}
+                  {detailItem.is_out_of_stock ? (
+                    <Tag color="default">无货</Tag>
+                  ) : (
+                    <span style={{ color: '#f5222d', fontSize: 18, fontWeight: 'bold' }}>¥{detailItem.min_price}</span>
+                  )}
+                  <Tooltip title="立即检查挂单有效性">
+                    <Button
+                      type="link"
+                      icon={<SyncOutlined />}
+                      size="small"
+                      onClick={handleCheckDetailValidity}
+                      loading={listingsLoading}
+                    >
+                      刷新
+                    </Button>
+                  </Tooltip>
+                </p>
+                {detailItem.historical_low_price && (
+                  <p>
+                    <strong>历史最低价:</strong>{' '}
+                    <span style={{ color: '#faad14', fontWeight: 'bold' }}>¥{detailItem.historical_low_price}</span>
+                  </p>
+                )}
                 <p><strong>更新时间:</strong> {new Date(detailItem.update_time).toLocaleString()}</p>
               </Col>
             </Row>

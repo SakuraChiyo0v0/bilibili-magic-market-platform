@@ -141,8 +141,15 @@ class ScraperService:
         name = product.name if product else str(goods_id)
 
         # Check sequentially to be gentle to the server
+        # Limit total checks to avoid ban
+        max_checks = 5
+
         for listing in listings:
             if valid_count >= target_valid_count:
+                break
+
+            if checked_count >= max_checks:
+                logger.warning(f"达到最大检查次数 ({max_checks})，停止检查以防风控。")
                 break
 
             # Check validity
@@ -156,9 +163,8 @@ class ScraperService:
                 removed_count += 1
 
             # Sleep between checks to avoid rate limiting
-            # Since this is a user-triggered action (viewing details), we can be faster than background scraping.
-            # 0.2s - 0.5s is usually safe for a burst of 5-10 requests.
-            time.sleep(random.uniform(0.2, 0.5))
+            # Increased delay to be safer
+            time.sleep(random.uniform(1.5, 3.0))
 
         if removed_count > 0:
             self.db.commit()

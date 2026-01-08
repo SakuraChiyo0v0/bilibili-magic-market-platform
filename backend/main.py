@@ -78,6 +78,7 @@ def scheduled_scrape():
 def manual_scrape_job():
     # Reset stop signal
     ScraperState.set_stop(False)
+    print("DEBUG: Manual scrape job started") # Debug print
 
     db = SessionLocal()
     try:
@@ -221,6 +222,7 @@ def scheduled_scrape():
 def manual_scrape_job():
     # Reset stop signal
     ScraperState.set_stop(False)
+    print("DEBUG: Manual scrape job started") # Debug print
 
     db = SessionLocal()
     try:
@@ -255,6 +257,18 @@ def continuous_scrape_job():
 log_queue = queue.Queue()
 queue_handler = QueueHandler(log_queue)
 
+class PollingFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        # Filter out polling endpoints
+        if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg:
+            return False
+        return True
+
+# Apply filter ONLY to uvicorn.access logger to filter HTTP requests
+# We do NOT want to filter application logs (which might contain these strings in message content, though unlikely)
+polling_filter = PollingFilter()
+
 # Configure Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -266,11 +280,31 @@ logging.basicConfig(
 )
 
 # Ensure uvicorn loggers also use our queue handler
-for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+for logger_name in ["uvicorn", "uvicorn.error", "services.scraper", "services.notifier"]:
     logger = logging.getLogger(logger_name)
-    logger.handlers = [h for h in logger.handlers if not isinstance(h, QueueHandler)] # Remove duplicates
+    # Remove existing handlers to avoid duplication if reloaded
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, QueueHandler)]
     logger.addHandler(queue_handler)
-    logger.propagate = False # Prevent double logging if root logger also has handlers
+    logger.setLevel(logging.INFO) # Ensure level is INFO
+    # logger.propagate = False # Let it propagate or not? If we add handler, we might not want propagate.
+    # But for app loggers, we usually want them to propagate to root if root has console handler.
+    # Here we add queue_handler explicitly, so we can set propagate to False to avoid double logging in console if root also has console handler.
+    # However, root has queue_handler too. So if we propagate, it goes to queue twice?
+    # Yes. So set propagate to False if we add handler explicitly.
+    logger.propagate = False
+
+# Special handling for uvicorn.access to apply filter
+access_logger = logging.getLogger("uvicorn.access")
+access_logger.handlers = [h for h in access_logger.handlers if not isinstance(h, QueueHandler)]
+access_logger.addHandler(queue_handler)
+access_logger.addFilter(polling_filter) # Apply filter HERE
+access_logger.propagate = False
+
+# Remove filter from queue_handler itself, so it doesn't block other loggers
+# (We previously added it to queue_handler directly, which was wrong)
+queue_handler.removeFilter(polling_filter) # Remove if added previously (though this is a new run)
+# Actually, removeFilter might not work if instance is different.
+# Let's just NOT add it to queue_handler in the first place.
 
 root_logger = logging.getLogger()
 # Ensure root logger level is INFO
