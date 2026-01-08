@@ -34,7 +34,7 @@ from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate,
 from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM, generate_api_key, hash_api_key
 from services.scraper import ScraperService
 from services.notifier import NotifierService
-from state import ScraperState
+from state import ScraperState, TaskManager
 from limiter import api_limiter
 
 from collections import deque
@@ -261,9 +261,17 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(), # Output to console
-        queue_handler # Output to WebSocket queue
+        queue_handler # Output to queue
     ]
 )
+
+# Ensure uvicorn loggers also use our queue handler
+for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+    logger = logging.getLogger(logger_name)
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, QueueHandler)] # Remove duplicates
+    logger.addHandler(queue_handler)
+    logger.propagate = False # Prevent double logging if root logger also has handlers
+
 root_logger = logging.getLogger()
 # Ensure root logger level is INFO
 root_logger.setLevel(logging.INFO)
@@ -593,6 +601,10 @@ def change_password(password_data: PasswordChange, current_user: User = Depends(
 
 # Favorite Endpoints
 
+@app.get("/api/tasks/active")
+def get_active_tasks(current_user: User = Depends(get_current_user)):
+    return TaskManager.get_active_tasks()
+
 @app.post("/api/favorites/check")
 def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Get all favorite goods_ids
@@ -602,22 +614,34 @@ def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_u
     if not goods_ids:
         return {"message": "No favorites to check"}
 
+    # Register task
+    task_id = TaskManager.add_task("check_favorites", f"检查 {len(goods_ids)} 个关注商品")
+    TaskManager.update_task(task_id, total=len(goods_ids))
+
     # Run check in background to avoid timeout
-    def check_task(ids: List[int]):
+    def check_task(ids: List[int], tid: str):
         # Create a new session for the background task
         task_db = SessionLocal()
         try:
             service = ScraperService(task_db)
             logging.info(f"开始检查用户 {current_user.username} 的 {len(ids)} 个关注商品...")
+            count = 0
             for gid in ids:
                 service.check_listings_validity(gid)
+                count += 1
+                TaskManager.update_task(tid, progress=count)
                 # Add a small delay between items to be safe
                 time.sleep(random.uniform(1.0, 2.0))
+
+            TaskManager.update_task(tid, status="completed", message="检查完成")
             logging.info(f"用户 {current_user.username} 的关注商品检查完成。")
+        except Exception as e:
+            TaskManager.update_task(tid, status="failed", message=str(e))
+            logging.error(f"检查任务失败: {e}")
         finally:
             task_db.close()
 
-    background_tasks.add_task(check_task, goods_ids)
+    background_tasks.add_task(check_task, goods_ids, task_id)
     return {"message": f"已开始后台检查 {len(goods_ids)} 个关注商品，请稍后刷新列表查看结果。"}
 
 @app.post("/api/favorites/{goods_id}")
@@ -654,6 +678,10 @@ def get_recent_favorites(limit: int = 5, current_user: User = Depends(get_curren
         .all()
     return items
 
+@app.get("/api/tasks/active")
+def get_active_tasks(current_user: User = Depends(get_current_user)):
+    return TaskManager.get_active_tasks()
+
 @app.post("/api/favorites/check")
 def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Get all favorite goods_ids
@@ -663,22 +691,34 @@ def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_u
     if not goods_ids:
         return {"message": "No favorites to check"}
 
+    # Register task
+    task_id = TaskManager.add_task("check_favorites", f"检查 {len(goods_ids)} 个关注商品")
+    TaskManager.update_task(task_id, total=len(goods_ids))
+
     # Run check in background to avoid timeout
-    def check_task(ids: List[int]):
+    def check_task(ids: List[int], tid: str):
         # Create a new session for the background task
         task_db = SessionLocal()
         try:
             service = ScraperService(task_db)
             logging.info(f"开始检查用户 {current_user.username} 的 {len(ids)} 个关注商品...")
+            count = 0
             for gid in ids:
                 service.check_listings_validity(gid)
+                count += 1
+                TaskManager.update_task(tid, progress=count)
                 # Add a small delay between items to be safe
                 time.sleep(random.uniform(1.0, 2.0))
+
+            TaskManager.update_task(tid, status="completed", message="检查完成")
             logging.info(f"用户 {current_user.username} 的关注商品检查完成。")
+        except Exception as e:
+            TaskManager.update_task(tid, status="failed", message=str(e))
+            logging.error(f"检查任务失败: {e}")
         finally:
             task_db.close()
 
-    background_tasks.add_task(check_task, goods_ids)
+    background_tasks.add_task(check_task, goods_ids, task_id)
     return {"message": f"已开始后台检查 {len(goods_ids)} 个关注商品，请稍后刷新列表查看结果。"}
 
 # Endpoints
@@ -786,11 +826,17 @@ def recalc_item_price(goods_id: int, current_user: User = Depends(get_current_us
 
 @app.post("/api/items/recalc_all")
 def recalc_all_items(background_tasks: BackgroundTasks, current_user: User = Depends(get_current_admin_user)):
-    def task():
+    # Register task
+    task_id = TaskManager.add_task("recalc_all", "全局价格修正")
+
+    def task(tid: str):
         db_task = SessionLocal()
         try:
             logging.info("开始全局价格修正任务...")
             products = db_task.query(Product).all()
+            total = len(products)
+            TaskManager.update_task(tid, total=total)
+
             count = 0
             for product in products:
                 # Find lowest price listing
@@ -810,15 +856,19 @@ def recalc_all_items(background_tasks: BackgroundTasks, current_user: User = Dep
                     product.is_out_of_stock = True
                     product.link = None
                 count += 1
+                if count % 10 == 0: # Update progress every 10 items
+                    TaskManager.update_task(tid, progress=count)
 
             db_task.commit()
+            TaskManager.update_task(tid, status="completed", message=f"修正完成，共处理 {count} 个商品")
             logging.info(f"全局价格修正完成，共处理 {count} 个商品。")
         except Exception as e:
+            TaskManager.update_task(tid, status="failed", message=str(e))
             logging.error(f"全局价格修正失败: {e}")
         finally:
             db_task.close()
 
-    background_tasks.add_task(task)
+    background_tasks.add_task(task, task_id)
     return {"message": "已开始后台全局修正任务，请稍后查看日志或刷新页面。"}
 
 @app.post("/api/items", response_model=ProductResponse)

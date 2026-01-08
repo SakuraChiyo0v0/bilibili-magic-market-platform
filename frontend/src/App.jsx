@@ -14,6 +14,8 @@ import UserList from './components/UserList';
 import { LogProvider } from './context/LogContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
+import TaskMonitor from './components/TaskMonitor';
+
 const { Header, Content, Footer, Sider } = Layout;
 const { Title, Text } = Typography;
 
@@ -205,12 +207,15 @@ function AppContent() {
       <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s', background: '#f0f2f5' }}>
         <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           {user && (
-            <Dropdown menu={userMenu}>
-              <Space style={{ cursor: 'pointer' }}>
-                <Avatar icon={<UserOutlined />} style={{ backgroundColor: colorPrimary }} />
-                <Text strong>{user.username}</Text>
-              </Space>
-            </Dropdown>
+            <Space size="large">
+              <TaskMonitor />
+              <Dropdown menu={userMenu}>
+                <Space style={{ cursor: 'pointer' }}>
+                  <Avatar icon={<UserOutlined />} style={{ backgroundColor: colorPrimary }} />
+                  <Text strong>{user.username}</Text>
+                </Space>
+              </Dropdown>
+            </Space>
           )}
         </Header>
         <Content style={{ margin: '0 16px', overflow: 'initial' }}>
