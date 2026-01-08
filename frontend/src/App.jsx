@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin, Modal, Form, Input } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined, LockOutlined } from '@ant-design/icons';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined, LockOutlined, TeamOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import ApiDocs from './components/ApiDocs';
 import AuthPage from './components/AuthPage';
 import SetupPage from './components/SetupPage';
+import UserList from './components/UserList';
 import { LogProvider } from './context/LogContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -144,6 +145,7 @@ function AppContent() {
   if (user?.role === 'admin') {
     items.push(
       { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
+      { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> },
       { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> }
     );
   }
@@ -224,6 +226,7 @@ function AppContent() {
               <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
               <Route path="/items" element={<PrivateRoute><ItemTable /></PrivateRoute>} />
               <Route path="/control" element={<PrivateRoute><ControlPanel /></PrivateRoute>} />
+              <Route path="/users" element={<PrivateRoute><UserList /></PrivateRoute>} />
               <Route path="/api" element={<PrivateRoute><ApiDocs /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             </Routes>

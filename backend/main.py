@@ -333,10 +333,16 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="用户名已被注册")
 
     hashed_password = get_password_hash(user.password)
+
+    # Handle empty email string to avoid unique constraint violation
+    email_to_save = user.email
+    if not email_to_save:
+        email_to_save = None
+
     new_user = User(
         username=user.username,
         hashed_password=hashed_password,
-        email=user.email,
+        email=email_to_save,
         role="user" # Default role
     )
     db.add(new_user)

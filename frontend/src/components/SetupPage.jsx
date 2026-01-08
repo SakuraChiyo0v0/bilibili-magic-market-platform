@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, Typography, App, Steps, Result } from 'antd';
-import { UserOutlined, LockOutlined, RocketOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, RocketOutlined, CheckCircleOutlined, MailOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -35,7 +35,7 @@ const SetupPage = ({ onSetupComplete }) => {
       await axios.post('/api/system/setup', {
         username: values.username,
         password: values.password,
-        email: values.email || 'admin@example.com'
+        email: values.email
       });
       setStep(1);
       message.success('管理员账户创建成功！');
@@ -84,6 +84,16 @@ const SetupPage = ({ onSetupComplete }) => {
               rules={[{ required: true, message: '请输入管理员用户名' }]}
             >
               <Input prefix={<UserOutlined />} placeholder="管理员用户名" />
+            </Form.Item>
+
+            <Form.Item
+              name="email"
+              rules={[
+                { required: true, message: '请输入管理员邮箱' },
+                { type: 'email', message: '请输入有效的邮箱格式' }
+              ]}
+            >
+              <Input prefix={<MailOutlined />} placeholder="管理员邮箱" />
             </Form.Item>
 
             <Form.Item
