@@ -12,10 +12,16 @@ import asyncio
 import logging
 import json
 import os
+import random
+import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Debug: Print loaded SMTP config
+smtp_user = os.getenv("SMTP_USER")
+logging.info(f"启动检查 - SMTP配置: User={smtp_user if smtp_user else '未找到'}, Server={os.getenv('SMTP_SERVER')}")
 
 from logging.handlers import QueueHandler
 from contextlib import asynccontextmanager
@@ -587,6 +593,33 @@ def change_password(password_data: PasswordChange, current_user: User = Depends(
 
 # Favorite Endpoints
 
+@app.post("/api/favorites/check")
+def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Get all favorite goods_ids
+    favorites = db.query(Favorite.goods_id).filter(Favorite.user_id == current_user.id).all()
+    goods_ids = [f.goods_id for f in favorites]
+
+    if not goods_ids:
+        return {"message": "No favorites to check"}
+
+    # Run check in background to avoid timeout
+    def check_task(ids: List[int]):
+        # Create a new session for the background task
+        task_db = SessionLocal()
+        try:
+            service = ScraperService(task_db)
+            logging.info(f"开始检查用户 {current_user.username} 的 {len(ids)} 个关注商品...")
+            for gid in ids:
+                service.check_listings_validity(gid)
+                # Add a small delay between items to be safe
+                time.sleep(random.uniform(1.0, 2.0))
+            logging.info(f"用户 {current_user.username} 的关注商品检查完成。")
+        finally:
+            task_db.close()
+
+    background_tasks.add_task(check_task, goods_ids)
+    return {"message": f"已开始后台检查 {len(goods_ids)} 个关注商品，请稍后刷新列表查看结果。"}
+
 @app.post("/api/favorites/{goods_id}")
 def toggle_favorite(goods_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(Favorite).filter(Favorite.user_id == current_user.id, Favorite.goods_id == goods_id).first()
@@ -620,6 +653,33 @@ def get_recent_favorites(limit: int = 5, current_user: User = Depends(get_curren
         .limit(limit)\
         .all()
     return items
+
+@app.post("/api/favorites/check")
+def check_all_favorites(body: dict, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Get all favorite goods_ids
+    favorites = db.query(Favorite.goods_id).filter(Favorite.user_id == current_user.id).all()
+    goods_ids = [f.goods_id for f in favorites]
+
+    if not goods_ids:
+        return {"message": "No favorites to check"}
+
+    # Run check in background to avoid timeout
+    def check_task(ids: List[int]):
+        # Create a new session for the background task
+        task_db = SessionLocal()
+        try:
+            service = ScraperService(task_db)
+            logging.info(f"开始检查用户 {current_user.username} 的 {len(ids)} 个关注商品...")
+            for gid in ids:
+                service.check_listings_validity(gid)
+                # Add a small delay between items to be safe
+                time.sleep(random.uniform(1.0, 2.0))
+            logging.info(f"用户 {current_user.username} 的关注商品检查完成。")
+        finally:
+            task_db.close()
+
+    background_tasks.add_task(check_task, goods_ids)
+    return {"message": f"已开始后台检查 {len(goods_ids)} 个关注商品，请稍后刷新列表查看结果。"}
 
 # Endpoints
 

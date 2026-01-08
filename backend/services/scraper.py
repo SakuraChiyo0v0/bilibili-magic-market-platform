@@ -131,7 +131,7 @@ class ScraperService:
 
         logger.info(f"正在检查商品 ID {goods_id} 的有效性。数据库中找到 {len(listings)} 个挂单。")
 
-        target_valid_count = 5
+        target_valid_count = 3 # Reduced from 5 to 3 to speed up check
         valid_count = 0
         checked_count = 0
         removed_count = 0

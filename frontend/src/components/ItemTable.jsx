@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs, Switch } from 'antd';
-import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, HeartOutlined, HeartFilled } from '@ant-design/icons';
+import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, HeartOutlined, HeartFilled, SyncOutlined } from '@ant-design/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -15,7 +15,10 @@ const ItemTable = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [favorites, setFavorites] = useState([]); // List of favorited goods_ids
-  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  // Initialize onlyFavorites from navigation state if available
+  const [onlyFavorites, setOnlyFavorites] = useState(location.state?.onlyFavorites || false);
+
+  const [checkLoading, setCheckLoading] = useState(false);
 
   // Initialize pagination from sessionStorage or default
   const [pagination, setPagination] = useState(() => {
@@ -91,13 +94,6 @@ const ItemTable = () => {
       // 0. Fetch Favorites
       fetchFavorites();
 
-      // Check for navigation state (e.g. from Dashboard)
-      if (location.state?.onlyFavorites) {
-        setOnlyFavorites(true);
-        // Clear state to prevent re-triggering on refresh
-        window.history.replaceState({}, document.title);
-      }
-
       // 1. Load Config
       try {
         // Load Show Images
@@ -132,7 +128,12 @@ const ItemTable = () => {
         try {
           const pageRes = await axios.get('/api/config/table_current_page');
           if (pageRes.data.value) {
-            currentPage = parseInt(pageRes.data.value);
+            // If we are filtering by favorites (e.g. from Dashboard), force page 1
+            if (location.state?.onlyFavorites) {
+                currentPage = 1;
+            } else {
+                currentPage = parseInt(pageRes.data.value);
+            }
             setPagination(prev => ({ ...prev, current: currentPage }));
           }
         } catch (e) {}
@@ -142,9 +143,8 @@ const ItemTable = () => {
       }
 
       // 2. Fetch Data
-      // Use the state value if set, otherwise default
-      const initialOnlyFav = location.state?.onlyFavorites || false;
-      fetchData(currentPage, currentPageSize, searchText, categoryFilter, sortBy, sortOrder, initialOnlyFav);
+      // Use the current state value which is initialized from location.state
+      fetchData(currentPage, currentPageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
     };
 
     init();
@@ -274,6 +274,23 @@ const ItemTable = () => {
     }
   };
 
+  const handleCheckFavorites = async () => {
+    setCheckLoading(true);
+    try {
+      // Send empty object as body to avoid 422 error
+      const res = await axios.post('/api/favorites/check', {});
+      message.success(res.data.message);
+      // Refresh data after a short delay to allow background task to start/finish some items
+      setTimeout(() => {
+        fetchData(pagination.current, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
+      }, 2000);
+    } catch (error) {
+      message.error('检查请求失败');
+    } finally {
+      setCheckLoading(false);
+    }
+  };
+
   const handleSearch = () => {
     // Reset to page 1 when searching
     fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
@@ -296,6 +313,7 @@ const ItemTable = () => {
 
   const handleOnlyFavoritesChange = (checked) => {
     setOnlyFavorites(checked);
+    // Reset to page 1 when toggling favorites
     fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, checked);
   };
 
@@ -469,7 +487,13 @@ const ItemTable = () => {
             <Input
               placeholder="搜索商品名称..."
               value={searchText}
-              onChange={e => setSearchText(e.target.value)}
+              onChange={e => {
+                setSearchText(e.target.value);
+                if (e.target.value === '') {
+                    // Auto-search (reset) when cleared
+                    fetchData(1, pagination.pageSize, '', categoryFilter, sortBy, sortOrder, onlyFavorites);
+                }
+              }}
               onPressEnter={handleSearch}
               allowClear
               suffix={<SearchOutlined onClick={handleSearch} style={{ cursor: 'pointer', color: '#1890ff' }} />}
@@ -522,6 +546,17 @@ const ItemTable = () => {
                 <Space style={{ marginLeft: 16 }}>
                   <span style={{ color: '#666' }}>只看关注:</span>
                   <Switch checked={onlyFavorites} onChange={handleOnlyFavoritesChange} />
+                  {onlyFavorites && (
+                    <Tooltip title="检查所有关注商品的链接有效性（后台运行）">
+                      <Button
+                        icon={<SyncOutlined />}
+                        onClick={handleCheckFavorites}
+                        loading={checkLoading}
+                      >
+                        检查有效性
+                      </Button>
+                    </Tooltip>
+                  )}
                 </Space>
               )}
             </Space>
