@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Space, Typography, theme, Table, Image, Tag, Progress } from 'antd';
+import { Card, Col, Row, Statistic, Space, Typography, theme, Table, Image, Tag, Progress, Button } from 'antd';
 import {
   ShoppingOutlined,
   HistoryOutlined,
@@ -7,23 +7,25 @@ import {
   RiseOutlined,
   FallOutlined,
   PieChartOutlined,
-  HeartOutlined
+  HeartOutlined,
+  ArrowRightOutlined
 } from '@ant-design/icons';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const { Text, Title } = Typography;
 
 const Dashboard = () => {
   const { token } = theme.useToken();
-  const [stats, setStats] = useState({ 
-    total_items: 0, 
-    total_history: 0, 
-    new_items_today: 0, 
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    total_items: 0,
+    total_history: 0,
+    new_items_today: 0,
     new_history_today: 0,
-    category_distribution: {} 
+    category_distribution: {}
   });
-  const [newItems, setNewItems] = useState([]);
   const [priceDrops, setPriceDrops] = useState([]);
   const [recentFavorites, setRecentFavorites] = useState([]);
 
@@ -31,15 +33,6 @@ const Dashboard = () => {
     try {
       const res = await axios.get('/api/stats');
       setStats(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const fetchNewItems = async () => {
-    try {
-      const res = await axios.get('/api/items/today/new');
-      setNewItems(res.data);
     } catch (error) {
       console.error(error);
     }
@@ -61,7 +54,7 @@ const Dashboard = () => {
         params: {
           sort_by: 'discount',
           order: 'desc',
-          limit: 5
+          limit: 10 // Increased limit since we removed new items table
         }
       });
       // Filter only items with actual discount > 0
@@ -74,7 +67,6 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchStats();
-    fetchNewItems();
     fetchPriceDrops();
     fetchRecentFavorites();
     const interval = setInterval(() => {
@@ -83,6 +75,14 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const goToFavorites = () => {
+    // Navigate to items page with state to trigger "only favorites" filter
+    // We can use URL query params or state. Let's use state for now, but query params are better for sharing.
+    // But ItemTable reads state from useState.
+    // Let's just navigate and let user click, or better:
+    // We can modify ItemTable to read initial filter from location state.
+    navigate('/items', { state: { onlyFavorites: true } });
+  };
   // Prepare Chart Data
   const categoryMap = { "2312": "手办", "2066": "模型", "2331": "周边", "2273": "3C" };
   const chartData = Object.entries(stats.category_distribution || {}).map(([key, value]) => ({
@@ -184,26 +184,11 @@ const Dashboard = () => {
       </Row>
 
       <Row gutter={[24, 24]}>
-        {/* Left Column: Charts & New Items */}
-        <Col xs={24} lg={16}>
-          <Card 
-            title={<Space><RiseOutlined style={{ color: token.colorSuccess }} /><span>今日新增商品</span></Space>}
-            style={{ marginBottom: 24 }}
-            variant="borderless"
-          >
-            <Table
-              dataSource={newItems}
-              rowKey="goods_id"
-              pagination={{ pageSize: 5, hideOnSinglePage: true }}
-              size="small"
-              columns={columns}
-            />
-          </Card>
-
+        {/* Left Column: Market Overview */}
+        <Col xs={24} lg={14}>
           <Card
             title={<Space><FallOutlined style={{ color: token.colorPrimary }} /><span>捡漏推荐 (高折扣)</span></Space>}
             variant="borderless"
-            style={{ marginBottom: 24 }}
           >
             <Table
               dataSource={priceDrops}
@@ -213,10 +198,15 @@ const Dashboard = () => {
               columns={columns}
             />
           </Card>
+        </Col>
 
+        {/* Right Column: Personal & Analysis */}
+        <Col xs={24} lg={10}>
           <Card
             title={<Space><HeartOutlined style={{ color: '#eb2f96' }} /><span>我的关注动态 (最近更新)</span></Space>}
+            extra={<Button type="link" size="small" onClick={goToFavorites}>查看全部 <ArrowRightOutlined /></Button>}
             variant="borderless"
+            style={{ marginBottom: 24 }}
           >
             <Table
               dataSource={recentFavorites}
@@ -227,13 +217,9 @@ const Dashboard = () => {
               locale={{ emptyText: '暂无关注商品或近期无更新' }}
             />
           </Card>
-        </Col>
-
-        {/* Right Column: Distribution */}
-        <Col xs={24} lg={8}>
-          <Card 
+          <Card
             title={<Space><PieChartOutlined /><span>分类占比</span></Space>}
-            style={{ height: '100%' }}
+            style={{ height: '400px' }}
             variant="borderless"
           >
             <div style={{ height: 300 }}>
@@ -258,17 +244,7 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ marginTop: 24 }}>
-              {chartData.map((item, index) => (
-                <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Space>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], display: 'inline-block' }}></span>
-                    <Text>{item.name}</Text>
-                  </Space>
-                  <Text strong>{item.value}</Text>
-                </div>
-              ))}
-            </div>
+            {/* Removed text list to save space and rely on chart legend/tooltip */}
           </Card>
         </Col>
       </Row>

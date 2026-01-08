@@ -59,8 +59,8 @@ export const LogProvider = ({ children }) => {
     stopPolling();
     // Initial fetch
     fetchLogs();
-    // Poll every 1 second
-    intervalRef.current = setInterval(fetchLogs, 1000);
+    // Poll every 3 seconds (reduced from 1s to reduce request spam)
+    intervalRef.current = setInterval(fetchLogs, 3000);
   };
 
   const stopPolling = () => {
@@ -70,10 +70,11 @@ export const LogProvider = ({ children }) => {
     }
   };
 
-  useEffect(() => {
-    startPolling();
-    return () => stopPolling();
-  }, []);
+  // Removed auto-start in useEffect to allow components to control it
+  // useEffect(() => {
+  //   startPolling();
+  //   return () => stopPolling();
+  // }, []);
 
   const reconnect = () => {
     // Reset timestamp to re-fetch recent logs or just continue?
@@ -90,7 +91,7 @@ export const LogProvider = ({ children }) => {
   };
 
   return (
-    <LogContext.Provider value={{ logs, connected, clearLogs, reconnect }}>
+    <LogContext.Provider value={{ logs, connected, clearLogs, reconnect, startPolling, stopPolling }}>
       {children}
     </LogContext.Provider>
   );

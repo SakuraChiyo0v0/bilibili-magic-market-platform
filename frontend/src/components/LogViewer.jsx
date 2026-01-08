@@ -6,9 +6,15 @@ import { useLogContext } from '../context/LogContext';
 const { Text } = Typography;
 
 const LogViewer = () => {
-  const { logs, connected, clearLogs, reconnect } = useLogContext();
+  const { logs, connected, clearLogs, reconnect, startPolling, stopPolling } = useLogContext();
   const [autoScroll, setAutoScroll] = useState(true);
   const listRef = useRef(null);
+
+  // Start polling when component mounts, stop when unmounts
+  useEffect(() => {
+    startPolling();
+    return () => stopPolling();
+  }, []);
 
   useEffect(() => {
     if (autoScroll && listRef.current) {

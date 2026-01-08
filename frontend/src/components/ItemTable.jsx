@@ -4,12 +4,14 @@ import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined,
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 const { Option } = Select;
 
 const ItemTable = () => {
   const { message } = App.useApp();
   const { user } = useAuth();
+  const location = useLocation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [favorites, setFavorites] = useState([]); // List of favorited goods_ids
@@ -89,6 +91,13 @@ const ItemTable = () => {
       // 0. Fetch Favorites
       fetchFavorites();
 
+      // Check for navigation state (e.g. from Dashboard)
+      if (location.state?.onlyFavorites) {
+        setOnlyFavorites(true);
+        // Clear state to prevent re-triggering on refresh
+        window.history.replaceState({}, document.title);
+      }
+
       // 1. Load Config
       try {
         // Load Show Images
@@ -133,7 +142,9 @@ const ItemTable = () => {
       }
 
       // 2. Fetch Data
-      fetchData(currentPage, currentPageSize);
+      // Use the state value if set, otherwise default
+      const initialOnlyFav = location.state?.onlyFavorites || false;
+      fetchData(currentPage, currentPageSize, searchText, categoryFilter, sortBy, sortOrder, initialOnlyFav);
     };
 
     init();
