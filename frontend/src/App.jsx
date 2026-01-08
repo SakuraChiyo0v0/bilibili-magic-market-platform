@@ -141,14 +141,16 @@ function AppContent() {
     { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items">商品列表</Link> },
   ];
 
-  // Only admin can see Control Panel and API Docs
+  // Only admin can see Control Panel and User Management
   if (user?.role === 'admin') {
     items.push(
       { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
-      { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> },
-      { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> }
+      { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> }
     );
   }
+
+  // API Access is available for everyone (to apply for developer)
+  items.push({ key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> });
 
   // Settings is available for everyone (for password change), but content differs
   items.push({ key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> });
