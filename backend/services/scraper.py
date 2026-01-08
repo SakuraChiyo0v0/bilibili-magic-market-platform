@@ -115,9 +115,15 @@ class ScraperService:
             sale_status = item_data.get("saleStatus")
 
             if publish_status != 1 or sale_status != 1:
-                logger.info(f"Item {c2c_id} invalid: publishStatus={publish_status}, saleStatus={sale_status}")
+                reasons = []
+                if publish_status == 2: reasons.append("已下架")
+                if sale_status == 2: reasons.append("已售出")
+
+                reason_str = f"{' '.join(reasons)} " if reasons else ""
+                logger.info(f"Item {c2c_id} 无效: {reason_str}(publishStatus={publish_status}, saleStatus={sale_status})")
                 return False
 
+            logger.info(f"Item {c2c_id} 有效")
             return True
 
         except Exception as e:

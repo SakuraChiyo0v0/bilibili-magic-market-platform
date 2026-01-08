@@ -698,17 +698,6 @@ const ItemTable = () => {
                   ) : (
                     <span style={{ color: '#f5222d', fontSize: 18, fontWeight: 'bold' }}>¥{detailItem.min_price}</span>
                   )}
-                  <Tooltip title="立即检查挂单有效性">
-                    <Button
-                      type="link"
-                      icon={<SyncOutlined />}
-                      size="small"
-                      onClick={handleCheckDetailValidity}
-                      loading={listingsLoading}
-                    >
-                      刷新
-                    </Button>
-                  </Tooltip>
                 </p>
                 {detailItem.historical_low_price && (
                   <p>
@@ -741,7 +730,21 @@ const ItemTable = () => {
               </ResponsiveContainer>
             </div>
 
-            <h3>在售列表 (最低价前5)</h3>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, marginRight: 12 }}>在售列表 (最低价前5)</h3>
+              <Tooltip title="立即检查挂单有效性">
+                <Button
+                  type="primary"
+                  ghost
+                  icon={<SyncOutlined />}
+                  size="small"
+                  onClick={handleCheckDetailValidity}
+                  loading={listingsLoading}
+                >
+                  刷新列表
+                </Button>
+              </Tooltip>
+            </div>
             <Table
               dataSource={listings.slice(0, 5)}
               rowKey="c2c_id"
