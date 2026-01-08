@@ -9,6 +9,7 @@ import ItemTable from './components/ItemTable';
 import Settings from './components/Settings';
 import ApiDocs from './components/ApiDocs';
 import AuthPage from './components/AuthPage';
+import SetupPage from './components/SetupPage';
 import { LogProvider } from './context/LogContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -126,10 +127,18 @@ function AppContent() {
   const items = [
     { key: '/', icon: <PieChartOutlined />, label: <Link to="/">数据看板</Link> },
     { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items">商品列表</Link> },
-    { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
-    { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> },
-    { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> },
   ];
+
+  // Only admin can see Control Panel and API Docs
+  if (user?.role === 'admin') {
+    items.push(
+      { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
+      { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> }
+    );
+  }
+
+  // Settings is available for everyone (for password change), but content differs
+  items.push({ key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> });
 
   const userMenu = {
     items: [

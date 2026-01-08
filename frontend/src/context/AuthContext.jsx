@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(null); // null = unknown, true = yes, false = no
   const { message } = App.useApp();
 
   // Configure axios defaults
@@ -18,6 +19,22 @@ export const AuthProvider = ({ children }) => {
   } else {
     delete axios.defaults.headers.common['Authorization'];
   }
+
+  const checkSystemStatus = async () => {
+    try {
+      const res = await axios.get('/api/system/status');
+      setIsInitialized(res.data.initialized);
+    } catch (error) {
+      console.error("Failed to check system status", error);
+      // If check fails, assume initialized to avoid blocking (or handle error)
+      // But for setup wizard, we really want to know.
+      // If backend is down, nothing works anyway.
+    }
+  };
+
+  useEffect(() => {
+    checkSystemStatus();
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -40,10 +57,10 @@ export const AuthProvider = ({ children }) => {
       const formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
-      
+
       const res = await axios.post('/api/auth/token', formData);
       const accessToken = res.data.access_token;
-      
+
       localStorage.setItem('token', accessToken);
       setToken(accessToken);
       message.success('登录成功');
@@ -74,7 +91,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, loading, isInitialized, checkSystemStatus }}>
       {children}
     </AuthContext.Provider>
   );

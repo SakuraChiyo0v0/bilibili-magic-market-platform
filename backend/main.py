@@ -9,13 +9,14 @@ from typing import List, Optional
 import asyncio
 import logging
 import json
+import os
 from logging.handlers import QueueHandler
 from contextlib import asynccontextmanager
 from jose import JWTError, jwt
 
 import queue
 from database import get_db, engine, SessionLocal
-from models import Base, Product, PriceHistory, SystemConfig, Listing, User
+from models import Base, Product, PriceHistory, SystemConfig, Listing, User, Favorite
 from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange
 from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM
 
@@ -120,27 +121,8 @@ async def lifespan(app: FastAPI):
         db.add(SystemConfig(key="scheduler_enabled", value="true", description="Scheduler Enabled Status"))
         db.commit()
 
-    # Initialize Admin User
-    # Priority: Env Vars > Default (admin/admin123)
-    admin_user = os.getenv("ADMIN_USERNAME", "admin")
-    admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
-
-    existing_admin = db.query(User).filter(User.username == admin_user).first()
-    if not existing_admin:
-        hashed_pw = get_password_hash(admin_pass)
-        new_admin = User(
-            username=admin_user,
-            hashed_password=hashed_pw,
-            role="admin",
-            email="admin@example.com"
-        )
-        db.add(new_admin)
-        db.commit()
-        if admin_pass == "admin123":
-            logging.warning(f"⚠️  已使用默认密码创建管理员: {admin_user} / {admin_pass}")
-            logging.warning("⚠️  请登录后立即修改密码！")
-        else:
-            logging.info(f"已根据环境变量创建管理员: {admin_user}")
+    # Initialize Admin User - REMOVED for Setup Wizard
+    # We now rely on the frontend to detect if no users exist and prompt for setup.
 
     db.close()
 
@@ -317,13 +299,38 @@ async def get_current_admin_user(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return current_user
 
+# System Endpoints
+
+@app.get("/api/system/status")
+def get_system_status(db: Session = Depends(get_db)):
+    user_count = db.query(User).count()
+    return {"initialized": user_count > 0}
+
+@app.post("/api/system/setup", response_model=UserResponse)
+def system_setup(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if already initialized
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=400, detail="系统已初始化")
+
+    hashed_password = get_password_hash(user.password)
+    new_admin = User(
+        username=user.username,
+        hashed_password=hashed_password,
+        email=user.email,
+        role="admin" # Force admin role
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    return new_admin
+
 # Auth Endpoints
 
 @app.post("/api/auth/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.username == user.username).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="用户名已被注册")
 
     hashed_password = get_password_hash(user.password)
     new_user = User(
@@ -343,7 +350,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="用户名或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -364,14 +371,57 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     response.is_default_password = is_default
     return response
 
+@app.get("/api/users", response_model=List[UserResponse])
+def get_all_users(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted"}
+
 @app.post("/api/auth/change-password")
 def change_password(password_data: PasswordChange, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not verify_password(password_data.old_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Old password is incorrect")
+        raise HTTPException(status_code=400, detail="旧密码错误")
 
     current_user.hashed_password = get_password_hash(password_data.new_password)
     db.commit()
-    return {"message": "Password updated successfully"}
+    return {"message": "密码修改成功"}
+
+# Favorite Endpoints
+
+@app.post("/api/favorites/{goods_id}")
+def toggle_favorite(goods_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(Favorite).filter(Favorite.user_id == current_user.id, Favorite.goods_id == goods_id).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"message": "Removed from favorites", "is_favorite": False}
+    else:
+        # Check if product exists
+        product = db.query(Product).filter(Product.goods_id == goods_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        fav = Favorite(user_id=current_user.id, goods_id=goods_id)
+        db.add(fav)
+        db.commit()
+        return {"message": "Added to favorites", "is_favorite": True}
+
+@app.get("/api/favorites/ids", response_model=List[int])
+def get_favorite_ids(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    favorites = db.query(Favorite.goods_id).filter(Favorite.user_id == current_user.id).all()
+    return [f.goods_id for f in favorites]
 
 # Endpoints
 
@@ -383,6 +433,8 @@ def get_items(
     order: str = "desc",
     search: Optional[str] = None,
     category: Optional[str] = None,
+    only_favorites: bool = False,
+    current_user: Optional[User] = Depends(get_current_user), # Optional auth for public view, but needed for favorites
     db: Session = Depends(get_db)
 ):
     query = db.query(Product)
@@ -398,6 +450,11 @@ def get_items(
                 query = query.filter(Product.category.in_(categories))
             else:
                 query = query.filter(Product.category == categories[0])
+
+    if only_favorites:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required for favorites")
+        query = query.join(Favorite, Product.goods_id == Favorite.goods_id).filter(Favorite.user_id == current_user.id)
 
     # Get total count before pagination
     total = query.count()

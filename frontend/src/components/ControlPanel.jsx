@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Button, App, Space, Collapse, Typography, theme, Divider, Modal } from 'antd';
+import { Card, Col, Row, Button, App, Space, Collapse, Typography, theme, Divider, Modal, Result } from 'antd';
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -12,6 +12,8 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import LogViewer from './LogViewer';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
@@ -20,6 +22,27 @@ const ControlPanel = () => {
   const { message, modal } = App.useApp();
   const [scraperStatus, setScraperStatus] = useState({ scheduler_status: 'unknown', is_running: false, next_run: null });
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      message.error('您没有权限访问此页面');
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  if (user?.role !== 'admin') {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="抱歉，您没有权限访问此页面。"
+        extra={<Button type="primary" onClick={() => navigate('/')}>返回首页</Button>}
+      />
+    );
+  }
 
   const fetchStatus = async () => {
     try {

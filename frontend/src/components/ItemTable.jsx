@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs } from 'antd';
-import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons';
+import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs, Switch } from 'antd';
+import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, HeartOutlined, HeartFilled } from '@ant-design/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const { Option } = Select;
 
 const ItemTable = () => {
   const { message } = App.useApp();
+  const { user } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [favorites, setFavorites] = useState([]); // List of favorited goods_ids
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   // Initialize pagination from sessionStorage or default
   const [pagination, setPagination] = useState(() => {
@@ -51,11 +55,39 @@ const ItemTable = () => {
   // Selection State
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
+  const fetchFavorites = async () => {
+    if (!user) return;
+    try {
+      const res = await axios.get('/api/favorites/ids');
+      setFavorites(res.data);
+    } catch (error) {
+      console.error("Failed to fetch favorites", error);
+    }
+  };
+
+  const toggleFavorite = async (goods_id) => {
+    try {
+      const res = await axios.post(`/api/favorites/${goods_id}`);
+      if (res.data.is_favorite) {
+        setFavorites(prev => [...prev, goods_id]);
+        message.success('已收藏');
+      } else {
+        setFavorites(prev => prev.filter(id => id !== goods_id));
+        message.success('已取消收藏');
+      }
+    } catch (error) {
+      message.error('操作失败');
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       let currentShowImages = true;
       let currentPageSize = 50;
       let currentPage = 1;
+
+      // 0. Fetch Favorites
+      fetchFavorites();
 
       // 1. Load Config
       try {
@@ -107,7 +139,7 @@ const ItemTable = () => {
     init();
   }, []);
 
-  const fetchData = async (page = pagination.current, pageSize = pagination.pageSize, search = searchText, category = categoryFilter, sort = sortBy, order = sortOrder) => {
+  const fetchData = async (page = pagination.current, pageSize = pagination.pageSize, search = searchText, category = categoryFilter, sort = sortBy, order = sortOrder, onlyFav = onlyFavorites) => {
     setLoading(true);
     try {
       const skip = (page - 1) * pageSize;
@@ -115,7 +147,8 @@ const ItemTable = () => {
         skip,
         limit: pageSize,
         sort_by: sort,
-        order: order
+        order: order,
+        only_favorites: onlyFav
       };
 
       if (search) {
@@ -232,22 +265,27 @@ const ItemTable = () => {
 
   const handleSearch = () => {
     // Reset to page 1 when searching
-    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
   };
 
   const handleCategoryChange = (value) => {
     setCategoryFilter(value);
-    fetchData(1, pagination.pageSize, searchText, value, sortBy, sortOrder);
+    fetchData(1, pagination.pageSize, searchText, value, sortBy, sortOrder, onlyFavorites);
   };
 
   const handleSortChange = (value) => {
     setSortBy(value);
-    fetchData(1, pagination.pageSize, searchText, categoryFilter, value, sortOrder);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, value, sortOrder, onlyFavorites);
   };
 
   const handleOrderChange = (value) => {
     setSortOrder(value);
-    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, value);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, value, onlyFavorites);
+  };
+
+  const handleOnlyFavoritesChange = (checked) => {
+    setOnlyFavorites(checked);
+    fetchData(1, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, checked);
   };
 
   const copyLink = (link) => {
@@ -313,6 +351,25 @@ const ItemTable = () => {
       width: 80,
       render: (text) => <Image width={60} src={text} style={{ borderRadius: 4 }} preview={{ src: text }} />,
     }] : []),
+    {
+      title: '',
+      key: 'favorite',
+      width: 40,
+      align: 'center',
+      render: (_, record) => {
+        const isFav = favorites.includes(record.goods_id);
+        return (
+          <Button
+            type="text"
+            icon={isFav ? <HeartFilled style={{ color: '#eb2f96' }} /> : <HeartOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(record.goods_id);
+            }}
+          />
+        );
+      }
+    },
     {
       title: '名称',
       dataIndex: 'name',
@@ -450,6 +507,12 @@ const ItemTable = () => {
                 <Option value="asc">升序</Option>
               </Select>
               <Button type="primary" onClick={handleSearch} icon={<SearchOutlined />}>查询</Button>
+              {user && (
+                <Space style={{ marginLeft: 16 }}>
+                  <span style={{ color: '#666' }}>只看关注:</span>
+                  <Switch checked={onlyFavorites} onChange={handleOnlyFavoritesChange} />
+                </Space>
+              )}
             </Space>
           </Col>
         </Row>

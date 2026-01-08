@@ -69,3 +69,10 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=True)
     role = Column(String(20), default="user") # 'admin' or 'user'
     created_at = Column(DateTime, default=datetime.now)
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    goods_id = Column(Integer, ForeignKey("products.goods_id"), primary_key=True)
+    created_at = Column(DateTime, default=datetime.now)
