@@ -757,6 +757,70 @@ def check_item_validity(goods_id: int, current_user: User = Depends(get_current_
     result = service.check_listings_validity(goods_id)
     return result
 
+@app.post("/api/items/{goods_id}/recalc")
+def recalc_item_price(goods_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.goods_id == goods_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Find lowest price listing
+    min_listing = db.query(Listing).filter(Listing.goods_id == goods_id).order_by(Listing.price.asc()).first()
+
+    if min_listing:
+        product.min_price = min_listing.price
+        product.is_out_of_stock = False
+        product.link = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={min_listing.c2c_id}&from=market_index"
+
+        # Update historical low if needed
+        if product.historical_low_price is None or min_listing.price < product.historical_low_price:
+            product.historical_low_price = min_listing.price
+    else:
+        # No listings -> Out of stock -> Set price to market price
+        product.min_price = product.market_price
+        product.is_out_of_stock = True
+        product.link = None
+
+    db.commit()
+    db.refresh(product)
+    return product
+
+@app.post("/api/items/recalc_all")
+def recalc_all_items(background_tasks: BackgroundTasks, current_user: User = Depends(get_current_admin_user)):
+    def task():
+        db_task = SessionLocal()
+        try:
+            logging.info("开始全局价格修正任务...")
+            products = db_task.query(Product).all()
+            count = 0
+            for product in products:
+                # Find lowest price listing
+                min_listing = db_task.query(Listing).filter(Listing.goods_id == product.goods_id).order_by(Listing.price.asc()).first()
+
+                if min_listing:
+                    product.min_price = min_listing.price
+                    product.is_out_of_stock = False
+                    product.link = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={min_listing.c2c_id}&from=market_index"
+
+                    # Update historical low if needed
+                    if product.historical_low_price is None or min_listing.price < product.historical_low_price:
+                        product.historical_low_price = min_listing.price
+                else:
+                    # No listings -> Out of stock -> Set price to market price
+                    product.min_price = product.market_price
+                    product.is_out_of_stock = True
+                    product.link = None
+                count += 1
+
+            db_task.commit()
+            logging.info(f"全局价格修正完成，共处理 {count} 个商品。")
+        except Exception as e:
+            logging.error(f"全局价格修正失败: {e}")
+        finally:
+            db_task.close()
+
+    background_tasks.add_task(task)
+    return {"message": "已开始后台全局修正任务，请稍后查看日志或刷新页面。"}
+
 @app.post("/api/items", response_model=ProductResponse)
 def create_item(item: ProductCreate, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     db_item = db.query(Product).filter(Product.goods_id == item.goods_id).first()

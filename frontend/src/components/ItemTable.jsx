@@ -362,6 +362,19 @@ const ItemTable = () => {
   };
   */
 
+  /*
+  const handleRecalcPrice = async (goods_id) => {
+    try {
+      await axios.post(`/api/items/${goods_id}/recalc`);
+      message.success('价格已修正');
+      // Refresh current page
+      fetchData(pagination.current, pagination.pageSize, searchText, categoryFilter, sortBy, sortOrder, onlyFavorites);
+    } catch (error) {
+      message.error('修正失败');
+    }
+  };
+  */
+
   const handleDelete = async (goods_id) => {
     try {
       await axios.delete(`/api/items/${goods_id}`);
@@ -477,8 +490,13 @@ const ItemTable = () => {
             <Button type="text" icon={<CopyOutlined />} onClick={() => copyLink(record.link)} size="small" />
           </Tooltip>
           <Tooltip title="跳转到B站">
-            <Button type="text" icon={<LinkOutlined style={{ color: '#1890ff' }} />} href={record.link} target="_blank" size="small" />
+            <Button type="text" icon={<LinkOutlined style={{ color: '#1890ff' }} />} href={record.link} target="_blank" size="small" disabled={!record.link} />
           </Tooltip>
+          {/*
+          <Tooltip title="修正价格 (基于数据库)">
+            <Button type="text" icon={<ToolOutlined />} onClick={() => handleRecalcPrice(record.goods_id)} size="small" />
+          </Tooltip>
+          */}
           {/*
           <Tooltip title="编辑">
             <Button type="text" icon={<EditOutlined />} onClick={() => showModal(record)} size="small" />

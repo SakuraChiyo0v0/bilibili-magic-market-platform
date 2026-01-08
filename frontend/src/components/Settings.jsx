@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, App, Card, Checkbox, Divider, InputNumber, Switch, Select, Row, Col, Tooltip, Typography, Alert, Space } from 'antd';
-import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined, LockOutlined, MailOutlined, SendOutlined } from '@ant-design/icons';
+import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined, LockOutlined, MailOutlined, SendOutlined, SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -375,6 +375,39 @@ const Settings = () => {
                     }
                   }}>
                     保存配置
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card
+                title={<Space><EyeOutlined /> 数据维护</Space>}
+                style={{ marginBottom: 16 }}
+                headStyle={{ backgroundColor: '#fafafa' }}
+              >
+                <Alert
+                  message="全局价格修正"
+                  description="此操作将遍历所有商品，根据当前数据库中的挂单重新计算最低价和状态。适用于修复数据不一致的情况。"
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <div style={{ textAlign: 'right' }}>
+                  <Button
+                    type="primary"
+                    danger
+                    icon={<SyncOutlined />}
+                    onClick={async () => {
+                      try {
+                        const res = await axios.post('/api/items/recalc_all');
+                        message.success(res.data.message);
+                      } catch (error) {
+                        message.error('操作失败');
+                      }
+                    }}
+                  >
+                    开始全局修正
                   </Button>
                 </div>
               </Card>
