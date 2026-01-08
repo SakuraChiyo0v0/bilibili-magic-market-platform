@@ -5,7 +5,9 @@ import { ApiOutlined, CopyOutlined, LinkOutlined, CodeOutlined, RocketOutlined }
 const { Title, Paragraph, Text } = Typography;
 
 const ApiDocs = () => {
-  const baseUrl = "http://127.0.0.1:8111";
+  // Dynamically get the current hostname (e.g., localhost, 192.168.x.x, or domain)
+  // and assume the backend is on port 8111 via HTTP.
+  const baseUrl = `http://${window.location.hostname}:8111`;
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -94,7 +96,7 @@ curl -X 'GET' \\
       >
         <Alert
           message="后端服务端口已暴露"
-          description="本系统后端服务运行在 8111 端口。您可以直接调用以下接口将数据集成到其他应用中。"
+          description={`本系统后端服务运行在 ${window.location.hostname}:8111。您可以直接调用以下接口将数据集成到其他应用中。`}
           type="info"
           showIcon
           style={{ marginBottom: 24 }}
