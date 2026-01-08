@@ -23,26 +23,9 @@ class NotifierService:
         self.smtp_password = os.getenv("SMTP_PASSWORD")
         self.smtp_from_name = os.getenv("SMTP_FROM_NAME", "MagicMarket")
 
-        # Override from DB if available
-        if self.db:
-            def get_db_val(key):
-                conf = self.db.query(SystemConfig).filter(SystemConfig.key == key).first()
-                return conf.value if conf else None
-
-            db_server = get_db_val("smtp_server")
-            if db_server: self.smtp_server = db_server
-
-            db_port = get_db_val("smtp_port")
-            if db_port: self.smtp_port = int(db_port)
-
-            db_user = get_db_val("smtp_user")
-            if db_user: self.smtp_user = db_user
-
-            db_pass = get_db_val("smtp_password")
-            if db_pass: self.smtp_password = db_pass
-
-            db_from = get_db_val("smtp_from_name")
-            if db_from: self.smtp_from_name = db_from
+        # Override from DB if available (ONLY for enabled toggle, not credentials)
+        # We strictly use Env for credentials as requested
+        pass
 
     def send_email(self, to_email: str, subject: str, content: str):
         if not self.smtp_user or not self.smtp_password:
