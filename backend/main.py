@@ -407,16 +407,26 @@ def get_stats(db: Session = Depends(get_db)):
     new_history_today = db.query(PriceHistory).filter(PriceHistory.record_time >= today_start).count()
 
     # New Items Today: Items where min(record_time) >= today_start
+    # Note: This is an approximation. A better way is to check if created_at is today, but we don't have created_at.
+    # We use first price history record time as creation time.
     new_items_today = db.query(PriceHistory.goods_id)\
         .group_by(PriceHistory.goods_id)\
         .having(func.min(PriceHistory.record_time) >= today_start)\
         .count()
 
+    # Category Distribution
+    cat_dist = db.query(Product.category, func.count(Product.goods_id))\
+        .group_by(Product.category)\
+        .all()
+
+    category_distribution = {c: count for c, count in cat_dist if c}
+
     return {
         "total_items": total_items,
         "total_history": total_history,
         "new_items_today": new_items_today,
-        "new_history_today": new_history_today
+        "new_history_today": new_history_today,
+        "category_distribution": category_distribution
     }
 
 @app.get("/api/items/today/new", response_model=List[ProductResponse])

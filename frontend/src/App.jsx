@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined } from '@ant-design/icons';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ControlPanel from './components/ControlPanel';
 import ItemTable from './components/ItemTable';
 import Settings from './components/Settings';
+import ApiDocs from './components/ApiDocs';
 import { LogProvider } from './context/LogContext';
 
 const { Header, Content, Footer, Sider } = Layout;
@@ -26,6 +27,7 @@ function AppContent() {
     { key: '/', icon: <PieChartOutlined />, label: <Link to="/">数据看板</Link> },
     { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items">商品列表</Link> },
     { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
+    { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> },
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> },
   ];
 
@@ -80,6 +82,7 @@ function AppContent() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/items" element={<ItemTable />} />
               <Route path="/control" element={<ControlPanel />} />
+              <Route path="/api" element={<ApiDocs />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </div>

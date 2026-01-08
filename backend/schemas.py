@@ -66,3 +66,4 @@ class StatsResponse(BaseModel):
     total_history: int
     new_items_today: int
     new_history_today: int
+    category_distribution: dict[str, int] = {}
