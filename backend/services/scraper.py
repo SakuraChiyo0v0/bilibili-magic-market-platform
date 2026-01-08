@@ -154,7 +154,9 @@ class ScraperService:
                 removed_count += 1
 
             # Sleep between checks to avoid rate limiting
-            time.sleep(random.uniform(1.0, 2.0))
+            # Since this is a user-triggered action (viewing details), we can be faster than background scraping.
+            # 0.2s - 0.5s is usually safe for a burst of 5-10 requests.
+            time.sleep(random.uniform(0.2, 0.5))
 
         if removed_count > 0:
             self.db.commit()
@@ -379,8 +381,22 @@ class ScraperService:
             url = "https://mall.bilibili.com/mall-magic-c/internet/c2c/v2/list"
             next_id = None
 
-            # Handle "All" category (categoryFilter is 'ALL' or empty)
-            target_category = self.payload_template.get("categoryFilter", "")
+            # 1. Load filter settings from DB
+            filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
+            filter_settings = {}
+            if filter_config:
+                try:
+                    filter_settings = json.loads(filter_config.value)
+                except:
+                    pass
+
+            # 2. Determine target category
+            # Priority: filter_settings['category'] > payload_template['categoryFilter']
+            target_category = filter_settings.get("category")
+
+            # If target_category is None or empty string, fallback to template or default
+            if target_category is None or target_category == "":
+                 target_category = self.payload_template.get("categoryFilter", "2312")
 
             category_map = {
                 "2312": "手办",
@@ -389,30 +405,36 @@ class ScraperService:
                 "2273": "3C"
             }
 
-            if not target_category or target_category == "ALL":
+            # Handle "ALL" logic
+            if target_category == "ALL":
                 # Weighted random selection
-                weights = {}
-                filter_config = self.db.query(SystemConfig).filter(SystemConfig.key == "filter_settings").first()
-                if filter_config:
-                    try:
-                        settings = json.loads(filter_config.value)
-                        weights = settings.get("category_weights", {})
-                    except:
-                        pass
+                weights = filter_settings.get("category_weights", {})
 
                 categories = list(category_map.keys())
                 # Default weight 25 if not set (for 4 categories)
                 category_weights = [weights.get(c, 25) for c in categories]
 
-                target_category = random.choices(categories, weights=category_weights, k=1)[0]
+                # Select one category for this run
+                selected_category = random.choices(categories, weights=category_weights, k=1)[0]
 
-                self.current_category_id = target_category
-                category_name = category_map.get(target_category, target_category)
-                logger.info(f"当前配置为全部分类，本次随机选中分类: {category_name} (权重: {weights.get(target_category, 25)})")
+                self.current_category_id = selected_category
+                category_name = category_map.get(selected_category, selected_category)
+                logger.info(f"当前配置为全部分类，本次随机选中分类: {category_name} (权重: {weights.get(selected_category, 25)})")
+
+                # IMPORTANT: Update target_category to the selected one so payload uses it
+                target_category = selected_category
             else:
                 self.current_category_id = target_category
                 category_name = category_map.get(target_category, target_category)
                 logger.info(f"当前爬取分类: {category_name}")
+
+            # 3. Determine price filters
+            price_filters = filter_settings.get("priceFilters", [])
+            if not price_filters:
+                 price_filters = self.payload_template.get("priceFilters", [])
+
+            if price_filters:
+                logger.info(f"应用价格筛选: {price_filters}")
 
             page_count = 0
             while True:
@@ -433,6 +455,8 @@ class ScraperService:
                     payload["nextId"] = next_id
                     # Override categoryFilter with our selected target
                     payload["categoryFilter"] = target_category if target_category != "ALL" else "2312" # Fallback just in case, but target_category should be resolved by now
+                    # Apply price filters
+                    payload["priceFilters"] = price_filters
 
                     logger.info(f"正在获取第 {page_count} 页...")
                     response = requests.post(url, headers=self.headers, data=json.dumps(payload), timeout=10)

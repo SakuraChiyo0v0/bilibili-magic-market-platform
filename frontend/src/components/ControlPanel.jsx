@@ -30,9 +30,113 @@ const ControlPanel = () => {
     }
   };
 
-  // ... (handlers)
+  // 1. Continuous Scrape
+  const handleContinuousScrape = async () => {
+    if (scraperStatus.scheduler_status === 'running') {
+      modal.confirm({
+        title: '确认启动常驻爬虫?',
+        icon: <ExclamationCircleOutlined />,
+        content: '检测到定时调度正在运行。启动常驻爬虫将自动暂停定时调度任务。',
+        onOk() {
+          startContinuous();
+        },
+        onCancel() {},
+      });
+    } else {
+      startContinuous();
+    }
+  };
 
-  // ... (useEffect)
+  const startContinuous = async () => {
+    setLoading(true);
+    try {
+      await axios.post('/api/scraper/continuous/start');
+      message.success('常驻爬虫已启动');
+      fetchStatus();
+    } catch (error) {
+      message.error('启动失败: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Interval Scrape (Scheduler)
+  const toggleScheduler = async (action) => {
+    if (action === 'start' && scraperStatus.is_running) {
+      message.warning('无法开启定时调度：检测到常驻爬虫正在运行。请先停止常驻爬虫。');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await axios.post(`/api/scraper/scheduler/toggle?action=${action}`);
+      message.success(`定时调度已${action === 'start' ? '开启' : '暂停'}`);
+      fetchStatus();
+    } catch (error) {
+      // Handle backend error message
+      const errorMsg = error.response?.data?.detail || '操作失败';
+      message.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3. Manual Scrape (One-off)
+  const triggerManualScrape = async () => {
+    setLoading(true);
+    try {
+      await axios.post('/api/scraper/manual');
+      message.success('已触发手动爬取 (1页)');
+      fetchStatus();
+    } catch (error) {
+      message.error('操作失败: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Stop Any Scrape
+  const stopScrape = async () => {
+    setLoading(true);
+    try {
+      await axios.post('/api/scraper/stop');
+      message.success('已发送停止信号');
+
+      // Poll until stopped
+      const checkStop = setInterval(async () => {
+        try {
+          const res = await axios.get('/api/scraper/status');
+          setScraperStatus(res.data);
+          if (!res.data.is_running) {
+            clearInterval(checkStop);
+            setLoading(false);
+            message.success('爬虫已完全停止');
+          }
+        } catch (e) {
+          clearInterval(checkStop);
+          setLoading(false);
+        }
+      }, 1000);
+
+      // Timeout after 15s
+      setTimeout(() => {
+        clearInterval(checkStop);
+        setLoading(false);
+      }, 15000);
+
+    } catch (error) {
+      message.error('停止失败');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const isSchedulerRunning = scraperStatus.scheduler_status === 'running';
   const isScraping = scraperStatus.is_running;
@@ -175,6 +279,7 @@ const ControlPanel = () => {
           }
         ]} />
       </Card>
+    </div>
   );
 };
 
