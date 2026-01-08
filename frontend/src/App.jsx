@@ -1,19 +1,35 @@
 import React, { useState } from 'react';
-import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined } from '@ant-design/icons';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin } from 'antd';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ControlPanel from './components/ControlPanel';
 import ItemTable from './components/ItemTable';
 import Settings from './components/Settings';
 import ApiDocs from './components/ApiDocs';
+import AuthPage from './components/AuthPage';
 import { LogProvider } from './context/LogContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const { Header, Content, Footer, Sider } = Layout;
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const DashboardPage = () => {
   return <Dashboard />;
+};
+
+const PrivateRoute = ({ children }) => {
+  const { token, loading } = useAuth();
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin size="large" /></div>;
+  }
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 };
 
 function AppContent() {
@@ -22,6 +38,12 @@ function AppContent() {
     token: { colorBgContainer, borderRadiusLG, colorPrimary },
   } = theme.useToken();
   const location = useLocation();
+  const { user, logout } = useAuth();
+
+  // If on login page, render it directly without layout
+  if (location.pathname === '/login') {
+    return <AuthPage />;
+  }
 
   const items = [
     { key: '/', icon: <PieChartOutlined />, label: <Link to="/">数据看板</Link> },
@@ -30,6 +52,17 @@ function AppContent() {
     { key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> },
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> },
   ];
+
+  const userMenu = {
+    items: [
+      {
+        key: 'logout',
+        label: '退出登录',
+        icon: <LogoutOutlined />,
+        onClick: logout,
+      },
+    ],
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -67,7 +100,16 @@ function AppContent() {
         <Menu theme="light" defaultSelectedKeys={['/']} selectedKeys={[location.pathname]} mode="inline" items={items} />
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s', background: '#f0f2f5' }}>
-        <Header style={{ padding: 0, background: colorBgContainer }} />
+        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          {user && (
+            <Dropdown menu={userMenu}>
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar icon={<UserOutlined />} style={{ backgroundColor: colorPrimary }} />
+                <Text strong>{user.username}</Text>
+              </Space>
+            </Dropdown>
+          )}
+        </Header>
         <Content style={{ margin: '0 16px', overflow: 'initial' }}>
           <div
             style={{
@@ -79,11 +121,12 @@ function AppContent() {
             }}
           >
             <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/items" element={<ItemTable />} />
-              <Route path="/control" element={<ControlPanel />} />
-              <Route path="/api" element={<ApiDocs />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+              <Route path="/items" element={<PrivateRoute><ItemTable /></PrivateRoute>} />
+              <Route path="/control" element={<PrivateRoute><ControlPanel /></PrivateRoute>} />
+              <Route path="/api" element={<PrivateRoute><ApiDocs /></PrivateRoute>} />
+              <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             </Routes>
           </div>
         </Content>
@@ -105,11 +148,13 @@ export default function App() {
       }}
     >
       <AntdApp>
-        <LogProvider>
-          <Router>
-            <AppContent />
-          </Router>
-        </LogProvider>
+        <AuthProvider>
+          <LogProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </LogProvider>
+        </AuthProvider>
       </AntdApp>
     </ConfigProvider>
   );

@@ -67,3 +67,26 @@ class StatsResponse(BaseModel):
     new_items_today: int
     new_history_today: int
     category_distribution: dict[str, int] = {}
+
+# Auth Schemas
+class UserBase(BaseModel):
+    username: str
+    email: Optional[str] = None
+
+class UserCreate(UserBase):
+    password: str
+
+class UserResponse(UserBase):
+    id: int
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None

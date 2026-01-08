@@ -8,3 +8,7 @@ requests
 apscheduler
 pandas
 openpyxl
+passlib[argon2]
+python-jose[cryptography]
+python-multipart
+argon2-cffi

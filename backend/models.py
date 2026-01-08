@@ -59,3 +59,13 @@ class SystemConfig(Base):
     key = Column(String(50), primary_key=True)
     value = Column(Text) # JSON string or plain text
     description = Column(String(255))
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True)
+    hashed_password = Column(String(255))
+    email = Column(String(100), unique=True, index=True, nullable=True)
+    role = Column(String(20), default="user") # 'admin' or 'user'
+    created_at = Column(DateTime, default=datetime.now)
