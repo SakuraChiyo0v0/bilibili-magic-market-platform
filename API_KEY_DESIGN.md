@@ -136,5 +136,5 @@ async def get_current_user_with_api_key(
 3.  [ ] 编写简单的 API 文档页面 (`/api/docs` 也就是 Swagger UI，确保对外友好)。
 
 ### Phase 3: 进阶控制
-1.  [ ] 实现 API 访问频率限制 (Rate Limiting)。
-2.  [ ] 记录 API Key 的 `last_used_at`，方便用户清理未使用的 Key。
+1.  [x] 实现 API 访问频率限制 (Rate Limiting)。
+2.  [x] 记录 API Key 的 `last_used_at`，方便用户清理未使用的 Key。

@@ -21,7 +21,9 @@ from database import get_db, engine, SessionLocal
 from models import Base, Product, PriceHistory, SystemConfig, Listing, User, Favorite, APIKey
 from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange, APIKeyCreate, APIKeyResponse, APIKeyCreated
 from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM, generate_api_key, hash_api_key
+from services.scraper import ScraperService
 from state import ScraperState
+from limiter import api_limiter
 
 from collections import deque
 
@@ -300,17 +302,20 @@ async def get_current_user(
     api_key: Optional[str] = Security(api_key_header),
     db: Session = Depends(get_db)
 ):
-    # Debug logging
-    logging.info(f"Auth Check: Token={token[:5] if token else 'None'}, API Key={api_key[:5] if api_key else 'None'}")
-
     # 1. Try API Key first
     if api_key:
+        # Rate Limiting Check
+        if not api_limiter.is_allowed(api_key):
+            raise HTTPException(status_code=429, detail="Rate limit exceeded (60 req/min)")
+
         hashed_key = hash_api_key(api_key)
         db_key = db.query(APIKey).filter(APIKey.hashed_key == hashed_key, APIKey.is_active == True).first()
         if db_key:
-            # Update last used time
-            db_key.last_used_at = datetime.now()
-            db.commit()
+            # Update last used time (Optimized: only update if > 60s ago)
+            now = datetime.now()
+            if not db_key.last_used_at or (now - db_key.last_used_at).total_seconds() > 60:
+                db_key.last_used_at = now
+                db.commit()
             return db_key.user
         # If API key is provided but invalid, fail immediately
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
