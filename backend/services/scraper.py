@@ -301,6 +301,13 @@ class ScraperService:
                 old_price = product.min_price
                 new_price = min_listing.price
 
+                # Update historical low price
+                if product.historical_low_price is None or new_price < product.historical_low_price:
+                    product.historical_low_price = new_price
+
+                # Mark as in stock
+                product.is_out_of_stock = False
+
                 # Always update link to the cheapest one
                 new_link = f"https://mall.bilibili.com/neul-next/index.html?page=magic-market_detail&noTitleBar=1&itemsId={min_listing.c2c_id}&from=market_index"
                 product.link = new_link
@@ -339,32 +346,10 @@ class ScraperService:
                         logger.info(f"📈 涨价提醒: 『{name}』   ¥ {old_price:,.2f} -> ¥ {new_price:,.2f} (旧货已出)")
             else:
                 # No listings left!
-                # This means all listings (including the one we just scraped?) were invalid or deleted.
-                # Wait, if we just scraped 'c2c_id', it should be in the DB unless it was deleted.
-                # But 'c2c_id' is added at step 2.
-                # If 'c2c_id' was added, min_listing should at least find that one.
-                # Unless 'c2c_id' itself was found invalid in the loop?
-                # But the loop only checks listings that are CHEAPER than 'c2c_id' (if we optimize)
-                # OR the loop checks min_listing.
-
-                # If we are here, it means min_listing is None.
-                # That implies the DB has NO listings for this goods_id.
-                # But we just added one in Step 2!
-                # So this case is extremely rare (maybe transaction isolation issue or it was deleted immediately).
-
-                # However, if we consider the case where we might delete the JUST added listing?
-                # The loop condition `if min_listing.c2c_id == c2c_id: break` prevents deleting the current item
-                # (assuming current item is valid because we just scraped it).
-                # BUT, `process_item` doesn't check validity of the current item `c2c_id` explicitly via API,
-                # it assumes it's valid because it appeared in the list.
-
-                # So min_listing should at least be the current item.
-                # If min_listing is None, it means something went wrong or the item was deleted concurrently.
-
-                # Let's handle the case where there are truly no listings (e.g. if we change logic later).
-                # If no listings, we should probably set min_price to None or 0?
-                # But Product model defines min_price as Float.
-                pass
+                # Mark as out of stock
+                product.is_out_of_stock = True
+                product.link = None
+                # We keep min_price as a reference to the last known price
 
             # Final commit for the item
             self.db.commit()

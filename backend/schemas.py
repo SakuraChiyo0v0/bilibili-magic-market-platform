@@ -9,6 +9,8 @@ class ProductBase(BaseModel):
     market_price: float
     category: Optional[str] = None
     min_price: Optional[float] = None
+    historical_low_price: Optional[float] = None
+    is_out_of_stock: bool = False
     link: Optional[str] = None
     update_time: datetime
 

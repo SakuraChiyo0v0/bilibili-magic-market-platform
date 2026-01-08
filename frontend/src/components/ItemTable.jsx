@@ -429,17 +429,30 @@ const ItemTable = () => {
       render: (price, record) => {
         const discount = record.market_price > 0 ? ((price / record.market_price) * 10).toFixed(1) : '-';
         const diff = (record.market_price - price).toFixed(0);
+        const isOutOfStock = record.is_out_of_stock;
+
         return (
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f5222d' }}>
-              ¥{price}
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: isOutOfStock ? '#999' : '#f5222d' }}>
+              {isOutOfStock ? '暂无报价' : `¥${price}`}
               <span style={{ fontSize: '12px', color: '#999', fontWeight: 'normal', marginLeft: 8, textDecoration: 'line-through' }}>
                 ¥{record.market_price}
               </span>
             </div>
             <Space size="small" style={{ marginTop: 4 }}>
-              <Tag color="green">{discount}折</Tag>
-              {diff > 0 && <Tag color="red">省¥{diff}</Tag>}
+              {isOutOfStock ? (
+                <Tag color="default">无货</Tag>
+              ) : (
+                <>
+                  <Tag color="green">{discount}折</Tag>
+                  {diff > 0 && <Tag color="red">省¥{diff}</Tag>}
+                </>
+              )}
+              {record.historical_low_price && (
+                <Tooltip title="历史最低价">
+                  <Tag color="gold">史低: ¥{record.historical_low_price}</Tag>
+                </Tooltip>
+              )}
             </Space>
           </div>
         );

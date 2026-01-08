@@ -14,6 +14,8 @@ class Product(Base):
 
     # Cache fields for sorting/display
     min_price = Column(Float) # 最低价缓存
+    historical_low_price = Column(Float) # 历史最低价
+    is_out_of_stock = Column(Boolean, default=False) # 是否无货
     link = Column(String(512)) # 最低价链接缓存
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
