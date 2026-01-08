@@ -261,7 +261,7 @@ class PollingFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage()
         # Filter out polling endpoints
-        if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg:
+        if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg or "POST /api/config" in msg:
             return False
         return True
 
@@ -297,14 +297,12 @@ for logger_name in ["uvicorn", "uvicorn.error", "services.scraper", "services.no
 access_logger = logging.getLogger("uvicorn.access")
 access_logger.handlers = [h for h in access_logger.handlers if not isinstance(h, QueueHandler)]
 access_logger.addHandler(queue_handler)
-access_logger.addFilter(polling_filter) # Apply filter HERE
+# access_logger.addFilter(polling_filter) # REMOVED: This would filter logs from console too
 access_logger.propagate = False
 
 # Remove filter from queue_handler itself, so it doesn't block other loggers
 # (We previously added it to queue_handler directly, which was wrong)
-queue_handler.removeFilter(polling_filter) # Remove if added previously (though this is a new run)
-# Actually, removeFilter might not work if instance is different.
-# Let's just NOT add it to queue_handler in the first place.
+# queue_handler.removeFilter(polling_filter)
 
 root_logger = logging.getLogger()
 # Ensure root logger level is INFO
@@ -320,10 +318,16 @@ async def process_log_queue():
             while not log_queue.empty():
                 try:
                     record = log_queue.get_nowait()
+
+                    # Apply filter manually here to only affect frontend logs
+                    msg = record.getMessage()
+                    if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg or "POST /api/config" in msg:
+                        continue
+
                     log_entry = {
                         "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
                         "level": record.levelname,
-                        "message": record.getMessage(),
+                        "message": msg,
                         "timestamp": record.created
                     }
                     log_history.append(log_entry)
