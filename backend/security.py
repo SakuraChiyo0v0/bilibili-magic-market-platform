@@ -3,6 +3,8 @@ from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import os
+import secrets
+import hashlib
 
 # Configuration
 # In production, these should be loaded from environment variables
@@ -27,3 +29,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+def generate_api_key():
+    """Generate a random API key with prefix 'sk-'."""
+    return f"sk-{secrets.token_hex(16)}"
+
+def hash_api_key(api_key: str) -> str:
+    """Hash the API key using SHA256."""
+    return hashlib.sha256(api_key.encode()).hexdigest()

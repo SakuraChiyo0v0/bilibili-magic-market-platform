@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, WebSocket, status
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, WebSocket, status, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, APIKeyHeader
 from sqlalchemy.orm import Session
 from sqlalchemy import case, func
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -18,11 +18,9 @@ from jose import JWTError, jwt
 
 import queue
 from database import get_db, engine, SessionLocal
-from models import Base, Product, PriceHistory, SystemConfig, Listing, User, Favorite
-from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange
-from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM
-
-from services.scraper import ScraperService
+from models import Base, Product, PriceHistory, SystemConfig, Listing, User, Favorite, APIKey
+from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange, APIKeyCreate, APIKeyResponse, APIKeyCreated
+from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM, generate_api_key, hash_api_key
 from state import ScraperState
 
 from collections import deque
@@ -294,9 +292,37 @@ def get_logs(since: float = 0):
         return logs[-100:]
 
 # Auth Dependency
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    api_key: Optional[str] = Security(api_key_header),
+    db: Session = Depends(get_db)
+):
+    # Debug logging
+    logging.info(f"Auth Check: Token={token[:5] if token else 'None'}, API Key={api_key[:5] if api_key else 'None'}")
+
+    # 1. Try API Key first
+    if api_key:
+        hashed_key = hash_api_key(api_key)
+        db_key = db.query(APIKey).filter(APIKey.hashed_key == hashed_key, APIKey.is_active == True).first()
+        if db_key:
+            # Update last used time
+            db_key.last_used_at = datetime.now()
+            db.commit()
+            return db_key.user
+        # If API key is provided but invalid, fail immediately
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
+
+    # 2. Try JWT Token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -319,6 +345,66 @@ async def get_current_admin_user(current_user: User = Depends(get_current_user))
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return current_user
+
+# Developer & API Key Endpoints
+
+@app.post("/api/developer/apply")
+def apply_developer(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.is_developer:
+        return {"message": "Already a developer"}
+
+    # MVP: Auto-approve
+    current_user.is_developer = True
+    current_user.developer_applied_at = datetime.now()
+    db.commit()
+    return {"message": "Developer status granted"}
+
+@app.get("/api/keys", response_model=List[APIKeyResponse])
+def get_api_keys(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_developer:
+        raise HTTPException(status_code=403, detail="Developer access required")
+    return current_user.api_keys
+
+@app.post("/api/keys", response_model=APIKeyCreated)
+def create_api_key(key_in: APIKeyCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_developer:
+        raise HTTPException(status_code=403, detail="Developer access required")
+
+    raw_key = generate_api_key()
+    hashed_key = hash_api_key(raw_key)
+    prefix = raw_key[:7] + "..."
+
+    new_key = APIKey(
+        user_id=current_user.id,
+        name=key_in.name,
+        prefix=prefix,
+        hashed_key=hashed_key
+    )
+    db.add(new_key)
+    db.commit()
+    db.refresh(new_key)
+
+    # Return raw key only once
+    # Manually construct response to include the raw key which is not in DB model
+    return APIKeyCreated(
+        id=new_key.id,
+        name=new_key.name,
+        prefix=new_key.prefix,
+        created_at=new_key.created_at,
+        last_used_at=new_key.last_used_at,
+        is_active=new_key.is_active,
+        key=raw_key
+    )
+
+@app.delete("/api/keys/{key_id}")
+def delete_api_key(key_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    key = db.query(APIKey).filter(APIKey.id == key_id, APIKey.user_id == current_user.id).first()
+    if not key:
+        raise HTTPException(status_code=404, detail="API Key not found")
+
+    db.delete(key)
+    db.commit()
+    return {"message": "API Key deleted"}
 
 # System Endpoints
 

@@ -95,3 +95,23 @@ class TokenData(BaseModel):
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str
+
+# API Key Schemas
+class APIKeyBase(BaseModel):
+    name: str
+
+class APIKeyCreate(APIKeyBase):
+    pass
+
+class APIKeyResponse(APIKeyBase):
+    id: int
+    prefix: str
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class APIKeyCreated(APIKeyResponse):
+    key: str # Only returned once
