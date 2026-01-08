@@ -117,7 +117,18 @@ function AppContent() {
     token: { colorBgContainer, borderRadiusLG, colorPrimary },
   } = theme.useToken();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isInitialized, checkSystemStatus } = useAuth();
+
+  // Check initialization status
+  if (isInitialized === null) {
+     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin size="large" /></div>;
+  }
+
+  if (isInitialized === false) {
+    return <SetupPage onSetupComplete={() => {
+        checkSystemStatus();
+    }} />;
+  }
 
   // If on login page, render it directly without layout
   if (location.pathname === '/login') {

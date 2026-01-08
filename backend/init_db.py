@@ -1,5 +1,6 @@
 from database import engine, Base
-from models import Product, PriceHistory, SystemConfig
+# Imports are required to register models with Base.metadata
+from models import Product, PriceHistory, SystemConfig, Listing, User, Favorite  # noqa: F401
 
 def init_db():
     Base.metadata.create_all(bind=engine)

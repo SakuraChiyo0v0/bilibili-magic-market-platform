@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Tabs, Typography, theme } from 'antd';
+import { Form, Input, Button, Card, Tabs, Typography, theme, App } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, RocketOutlined } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,8 @@ const AuthPage = () => {
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('login');
+  const { message } = App.useApp();
 
   const onLoginFinish = async (values) => {
     setLoading(true);
@@ -25,7 +27,12 @@ const AuthPage = () => {
     setLoading(true);
     const success = await register(values.username, values.password, values.email);
     setLoading(false);
-    // Stay on page to login
+    if (success) {
+      message.success('注册成功！3秒后自动切换到登录...');
+      setTimeout(() => {
+        setActiveTab('login');
+      }, 3000);
+    }
   };
 
   const items = [
@@ -131,7 +138,7 @@ const AuthPage = () => {
           <Title level={2} style={{ marginTop: 16, marginBottom: 8 }}>Magic Market</Title>
           <Text type="secondary">二次元倒爷的必备神器</Text>
         </div>
-        <Tabs defaultActiveKey="login" items={items} centered />
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={items} centered />
       </Card>
     </div>
   );

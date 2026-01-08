@@ -6,7 +6,8 @@ import {
   ThunderboltOutlined,
   RiseOutlined,
   FallOutlined,
-  PieChartOutlined
+  PieChartOutlined,
+  HeartOutlined
 } from '@ant-design/icons';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import axios from 'axios';
@@ -24,6 +25,7 @@ const Dashboard = () => {
   });
   const [newItems, setNewItems] = useState([]);
   const [priceDrops, setPriceDrops] = useState([]);
+  const [recentFavorites, setRecentFavorites] = useState([]);
 
   const fetchStats = async () => {
     try {
@@ -38,6 +40,15 @@ const Dashboard = () => {
     try {
       const res = await axios.get('/api/items/today/new');
       setNewItems(res.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchRecentFavorites = async () => {
+    try {
+      const res = await axios.get('/api/favorites/recent');
+      setRecentFavorites(res.data);
     } catch (error) {
       console.error(error);
     }
@@ -65,6 +76,7 @@ const Dashboard = () => {
     fetchStats();
     fetchNewItems();
     fetchPriceDrops();
+    fetchRecentFavorites();
     const interval = setInterval(() => {
       fetchStats();
     }, 10000); // Refresh stats every 10s
@@ -188,9 +200,10 @@ const Dashboard = () => {
             />
           </Card>
 
-          <Card 
+          <Card
             title={<Space><FallOutlined style={{ color: token.colorPrimary }} /><span>捡漏推荐 (高折扣)</span></Space>}
             variant="borderless"
+            style={{ marginBottom: 24 }}
           >
             <Table
               dataSource={priceDrops}
@@ -198,6 +211,20 @@ const Dashboard = () => {
               pagination={false}
               size="small"
               columns={columns}
+            />
+          </Card>
+
+          <Card
+            title={<Space><HeartOutlined style={{ color: '#eb2f96' }} /><span>我的关注动态 (最近更新)</span></Space>}
+            variant="borderless"
+          >
+            <Table
+              dataSource={recentFavorites}
+              rowKey="goods_id"
+              pagination={false}
+              size="small"
+              columns={columns}
+              locale={{ emptyText: '暂无关注商品或近期无更新' }}
             />
           </Card>
         </Col>

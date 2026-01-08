@@ -48,6 +48,15 @@ if errorlevel 1 (
     )
 )
 
+:: Initialize Database (Ensure tables exist)
+echo Initializing Database...
+python init_db.py
+if errorlevel 1 (
+    echo [WARNING] Database initialization script returned an error.
+    echo Please check your database configuration in .env
+    pause
+)
+
 :: Start backend in new window using python -m uvicorn
 start "MagicMarket Backend" cmd /k "title MagicMarket Backend && echo Starting Backend... && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8111"
 

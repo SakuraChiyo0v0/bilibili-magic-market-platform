@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, Typography, App, Steps, Result } from 'antd';
 import { UserOutlined, LockOutlined, RocketOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
@@ -9,8 +9,25 @@ const { Title, Paragraph } = Typography;
 const SetupPage = ({ onSetupComplete }) => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
+  const [countdown, setCountdown] = useState(3);
   const { message } = App.useApp();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (step === 1) {
+      let timer = 3;
+      setCountdown(timer);
+      const interval = setInterval(() => {
+        timer -= 1;
+        setCountdown(timer);
+        if (timer <= 0) {
+          clearInterval(interval);
+          if (onSetupComplete) onSetupComplete();
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [step, onSetupComplete]);
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -22,11 +39,6 @@ const SetupPage = ({ onSetupComplete }) => {
       });
       setStep(1);
       message.success('管理员账户创建成功！');
-      if (onSetupComplete) {
-        setTimeout(() => {
-            onSetupComplete();
-        }, 1500);
-      }
     } catch (error) {
       message.error('初始化失败: ' + (error.response?.data?.detail || error.message));
     } finally {
@@ -35,10 +47,10 @@ const SetupPage = ({ onSetupComplete }) => {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
       minHeight: '100vh',
       background: '#f0f2f5',
       padding: 20
@@ -50,8 +62,8 @@ const SetupPage = ({ onSetupComplete }) => {
           <Paragraph type="secondary">欢迎使用！请设置您的初始管理员账户。</Paragraph>
         </div>
 
-        <Steps 
-          current={step} 
+        <Steps
+          current={step}
           items={[
             { title: '创建管理员', icon: <UserOutlined /> },
             { title: '完成', icon: <CheckCircleOutlined /> }
@@ -109,10 +121,10 @@ const SetupPage = ({ onSetupComplete }) => {
           <Result
             status="success"
             title="系统初始化完成！"
-            subTitle="您现在可以使用管理员账户登录系统了。"
+            subTitle={`您现在可以使用管理员账户登录系统了。(${countdown}s 后自动跳转)`}
             extra={[
-              <Button type="primary" key="login" onClick={() => window.location.reload()}>
-                前往登录
+              <Button type="primary" key="login" onClick={onSetupComplete}>
+                立即前往登录
               </Button>
             ]}
           />

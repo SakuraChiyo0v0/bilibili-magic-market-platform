@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -73,6 +73,6 @@ class User(Base):
 class Favorite(Base):
     __tablename__ = "favorites"
 
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    goods_id = Column(Integer, ForeignKey("products.goods_id"), primary_key=True)
+    user_id = Column(Integer, primary_key=True)
+    goods_id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.now)

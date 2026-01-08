@@ -423,6 +423,17 @@ def get_favorite_ids(current_user: User = Depends(get_current_user), db: Session
     favorites = db.query(Favorite.goods_id).filter(Favorite.user_id == current_user.id).all()
     return [f.goods_id for f in favorites]
 
+@app.get("/api/favorites/recent", response_model=List[ProductResponse])
+def get_recent_favorites(limit: int = 5, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Get favorites joined with products, ordered by update_time desc
+    items = db.query(Product)\
+        .join(Favorite, Product.goods_id == Favorite.goods_id)\
+        .filter(Favorite.user_id == current_user.id)\
+        .order_by(Product.update_time.desc())\
+        .limit(limit)\
+        .all()
+    return items
+
 # Endpoints
 
 @app.get("/api/items", response_model=ProductListResponse)
