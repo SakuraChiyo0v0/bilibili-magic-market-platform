@@ -350,7 +350,8 @@ class ScraperService:
                                         old_price=old_price,
                                         new_price=new_price,
                                         link=new_link,
-                                        img_url=img
+                                        img_url=img,
+                                        market_price=product.market_price or 0.0
                                     )
                         except Exception as e:
                             logger.error(f"发送通知失败: {e}")

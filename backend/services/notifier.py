@@ -53,39 +53,45 @@ class NotifierService:
         except Exception as e:
             logger.error(f"❌ 邮件发送失败: {e}", exc_info=True)
             return False
-    def send_price_drop_notification(self, user_email: str, product_name: str, old_price: float, new_price: float, link: str, img_url: str):
+    def send_price_drop_notification(self, user_email: str, product_name: str, old_price: float, new_price: float, link: str, img_url: str, market_price: float = 0.0):
         subject = f"📉 降价提醒：{product_name} 降至 ¥{new_price}"
-        
+
         diff = old_price - new_price
         percent = (diff / old_price * 100) if old_price > 0 else 0
-        
+
+        # Format market price display if available
+        market_price_html = ""
+        if market_price > 0:
+             market_price_html = f'<p style="margin: 0 0 5px 0; color: #666;">市场价：¥{market_price}</p>'
+
         content = f"""
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
             <h2 style="color: #FB7299;">Magic Market 降价提醒</h2>
             <p>您关注的商品有了新的低价！</p>
-            
+
             <div style="display: flex; margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 6px;">
                 <img src="{img_url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; margin-right: 15px;">
                 <div>
                     <h3 style="margin: 0 0 10px 0; font-size: 16px;">{product_name}</h3>
+                    {market_price_html}
                     <p style="margin: 0; color: #999; text-decoration: line-through;">原价：¥{old_price}</p>
                     <p style="margin: 5px 0 0 0; color: #f5222d; font-size: 20px; font-weight: bold;">
-                        现价：¥{new_price} 
+                        现价：¥{new_price}
                         <span style="font-size: 12px; background: #f5222d; color: white; padding: 2px 6px; border-radius: 4px; vertical-align: middle;">
                             ↓ {percent:.1f}%
                         </span>
                     </p>
                 </div>
             </div>
-            
+
             <a href="{link}" style="display: block; width: 100%; text-align: center; background: #FB7299; color: white; padding: 12px 0; text-decoration: none; border-radius: 4px; font-weight: bold;">
                 立即查看详情
             </a>
-            
+
             <p style="margin-top: 30px; font-size: 12px; color: #999; text-align: center;">
                 此邮件由 Bilibili Magic Market 自动发送，请勿回复。
             </p>
         </div>
         """
-        
+
         return self.send_email(user_email, subject, content)
