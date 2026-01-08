@@ -257,18 +257,6 @@ def continuous_scrape_job():
 log_queue = queue.Queue()
 queue_handler = QueueHandler(log_queue)
 
-class PollingFilter(logging.Filter):
-    def filter(self, record):
-        msg = record.getMessage()
-        # Filter out polling endpoints
-        if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg or "POST /api/config" in msg:
-            return False
-        return True
-
-# Apply filter ONLY to uvicorn.access logger to filter HTTP requests
-# We do NOT want to filter application logs (which might contain these strings in message content, though unlikely)
-polling_filter = PollingFilter()
-
 # Configure Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -279,30 +267,28 @@ logging.basicConfig(
     ]
 )
 
-# Ensure uvicorn loggers also use our queue handler
+# Ensure specific loggers use our queue handler for frontend display
+# We explicitly EXCLUDE "uvicorn.access" to prevent HTTP requests from showing in frontend logs
 for logger_name in ["uvicorn", "uvicorn.error", "services.scraper", "services.notifier"]:
     logger = logging.getLogger(logger_name)
     # Remove existing handlers to avoid duplication if reloaded
     logger.handlers = [h for h in logger.handlers if not isinstance(h, QueueHandler)]
     logger.addHandler(queue_handler)
-    logger.setLevel(logging.INFO) # Ensure level is INFO
-    # logger.propagate = False # Let it propagate or not? If we add handler, we might not want propagate.
-    # But for app loggers, we usually want them to propagate to root if root has console handler.
-    # Here we add queue_handler explicitly, so we can set propagate to False to avoid double logging in console if root also has console handler.
-    # However, root has queue_handler too. So if we propagate, it goes to queue twice?
-    # Yes. So set propagate to False if we add handler explicitly.
+    logger.setLevel(logging.INFO)
     logger.propagate = False
 
-# Special handling for uvicorn.access to apply filter
+# Special handling for uvicorn.access - ONLY Console, NO Queue
 access_logger = logging.getLogger("uvicorn.access")
+# Remove QueueHandler if present (to be safe)
 access_logger.handlers = [h for h in access_logger.handlers if not isinstance(h, QueueHandler)]
-access_logger.addHandler(queue_handler)
-# access_logger.addFilter(polling_filter) # REMOVED: This would filter logs from console too
+# Ensure it has a StreamHandler (usually added by uvicorn default, but we can ensure it propagates or has one)
+# If we set propagate=True, it goes to root logger which has StreamHandler AND QueueHandler.
+# So we must set propagate=False and ensure it has its own StreamHandler if we want console only.
+# However, uvicorn usually configures this. Let's just NOT add QueueHandler.
 access_logger.propagate = False
-
-# Remove filter from queue_handler itself, so it doesn't block other loggers
-# (We previously added it to queue_handler directly, which was wrong)
-# queue_handler.removeFilter(polling_filter)
+# Add StreamHandler explicitly if empty to ensure console output
+if not access_logger.handlers:
+    access_logger.addHandler(logging.StreamHandler())
 
 root_logger = logging.getLogger()
 # Ensure root logger level is INFO
@@ -319,15 +305,12 @@ async def process_log_queue():
                 try:
                     record = log_queue.get_nowait()
 
-                    # Apply filter manually here to only affect frontend logs
-                    msg = record.getMessage()
-                    if "GET /api/logs" in msg or "GET /api/tasks/active" in msg or "GET /api/scraper/status" in msg or "POST /api/config" in msg:
-                        continue
+                    # No need for manual filtering anymore as we don't pipe access logs here
 
                     log_entry = {
                         "time": datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
                         "level": record.levelname,
-                        "message": msg,
+                        "message": record.getMessage(),
                         "timestamp": record.created
                     }
                     log_history.append(log_entry)
