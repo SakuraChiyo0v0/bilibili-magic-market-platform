@@ -80,6 +80,7 @@ class UserResponse(UserBase):
     id: int
     role: str
     created_at: datetime
+    is_default_password: bool = False
 
     class Config:
         from_attributes = True
@@ -90,3 +91,7 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str

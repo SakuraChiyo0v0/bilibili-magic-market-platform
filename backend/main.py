@@ -16,7 +16,7 @@ from jose import JWTError, jwt
 import queue
 from database import get_db, engine, SessionLocal
 from models import Base, Product, PriceHistory, SystemConfig, Listing, User
-from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token
+from schemas import ProductResponse, ConfigUpdate, StatsResponse, ProductCreate, ProductUpdate, ListingResponse, PriceHistoryResponse, ProductListResponse, UserCreate, UserResponse, Token, PasswordChange
 from security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM
 
 from services.scraper import ScraperService
@@ -119,6 +119,28 @@ async def lifespan(app: FastAPI):
         # Initialize default
         db.add(SystemConfig(key="scheduler_enabled", value="true", description="Scheduler Enabled Status"))
         db.commit()
+
+    # Initialize Admin User
+    # Priority: Env Vars > Default (admin/admin123)
+    admin_user = os.getenv("ADMIN_USERNAME", "admin")
+    admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
+
+    existing_admin = db.query(User).filter(User.username == admin_user).first()
+    if not existing_admin:
+        hashed_pw = get_password_hash(admin_pass)
+        new_admin = User(
+            username=admin_user,
+            hashed_password=hashed_pw,
+            role="admin",
+            email="admin@example.com"
+        )
+        db.add(new_admin)
+        db.commit()
+        if admin_pass == "admin123":
+            logging.warning(f"⚠️  已使用默认密码创建管理员: {admin_user} / {admin_pass}")
+            logging.warning("⚠️  请登录后立即修改密码！")
+        else:
+            logging.info(f"已根据环境变量创建管理员: {admin_user}")
 
     db.close()
 
@@ -290,6 +312,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
+async def get_current_admin_user(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    return current_user
+
 # Auth Endpoints
 
 @app.post("/api/auth/register", response_model=UserResponse)
@@ -328,7 +355,23 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 @app.get("/api/users/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    # Check if password is default 'admin123'
+    # Note: This adds a slight overhead but is acceptable for this endpoint
+    is_default = verify_password("admin123", current_user.hashed_password)
+
+    # Create a response object and set the flag
+    response = UserResponse.from_orm(current_user)
+    response.is_default_password = is_default
+    return response
+
+@app.post("/api/auth/change-password")
+def change_password(password_data: PasswordChange, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(password_data.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Old password is incorrect")
+
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
 
 # Endpoints
 
@@ -394,13 +437,13 @@ def get_item_history(goods_id: int, db: Session = Depends(get_db)):
     return history
 
 @app.post("/api/items/{goods_id}/check_validity")
-def check_item_validity(goods_id: int, db: Session = Depends(get_db)):
+def check_item_validity(goods_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     service = ScraperService(db)
     result = service.check_listings_validity(goods_id)
     return result
 
 @app.post("/api/items", response_model=ProductResponse)
-def create_item(item: ProductCreate, db: Session = Depends(get_db)):
+def create_item(item: ProductCreate, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     db_item = db.query(Product).filter(Product.goods_id == item.goods_id).first()
     if db_item:
         raise HTTPException(status_code=400, detail="Item already exists")
@@ -420,7 +463,7 @@ def create_item(item: ProductCreate, db: Session = Depends(get_db)):
     return new_item
 
 @app.put("/api/items/{goods_id}", response_model=ProductResponse)
-def update_item(goods_id: int, item: ProductUpdate, db: Session = Depends(get_db)):
+def update_item(goods_id: int, item: ProductUpdate, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     db_item = db.query(Product).filter(Product.goods_id == goods_id).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -435,7 +478,7 @@ def update_item(goods_id: int, item: ProductUpdate, db: Session = Depends(get_db
     return db_item
 
 @app.delete("/api/items/{goods_id}")
-def delete_item(goods_id: int, db: Session = Depends(get_db)):
+def delete_item(goods_id: int, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     db_item = db.query(Product).filter(Product.goods_id == goods_id).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -447,7 +490,7 @@ def delete_item(goods_id: int, db: Session = Depends(get_db)):
     return {"message": "Item deleted"}
 
 @app.post("/api/items/batch_delete")
-def batch_delete_items(goods_ids: List[int], db: Session = Depends(get_db)):
+def batch_delete_items(goods_ids: List[int], current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     # Delete history
     db.query(PriceHistory).filter(PriceHistory.goods_id.in_(goods_ids)).delete(synchronize_session=False)
     # Delete products
@@ -456,7 +499,7 @@ def batch_delete_items(goods_ids: List[int], db: Session = Depends(get_db)):
     return {"message": f"Deleted {len(goods_ids)} items"}
 
 @app.post("/api/scrape")
-def trigger_scrape(db: Session = Depends(get_db)):
+def trigger_scrape(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     # Use scheduler to run job immediately, so it can be managed by scheduler shutdown
     scheduler.add_job(manual_scrape_job, 'date', run_date=datetime.now(), id='manual_scrape', replace_existing=True)
     return {"message": "Scrape started in background"}
@@ -536,7 +579,7 @@ def restart_scraper_task():
         db.close()
 
 @app.post("/api/config")
-def update_config(config_in: ConfigUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def update_config(config_in: ConfigUpdate, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     config = db.query(SystemConfig).filter(SystemConfig.key == config_in.key).first()
     if not config:
         config = SystemConfig(key=config_in.key, value=config_in.value)
@@ -580,7 +623,7 @@ def get_scraper_status():
     }
 
 @app.post("/api/scraper/continuous/start")
-def start_continuous_scrape(background_tasks: BackgroundTasks):
+def start_continuous_scrape(background_tasks: BackgroundTasks, current_user: User = Depends(get_current_admin_user)):
     if ScraperState.is_running():
         raise HTTPException(status_code=400, detail="Scraper is already running")
 
@@ -594,7 +637,7 @@ def start_continuous_scrape(background_tasks: BackgroundTasks):
     return {"message": "Continuous scrape started"}
 
 @app.post("/api/scraper/scheduler/toggle")
-def toggle_scheduler(action: str, db: Session = Depends(get_db)): # action: start, stop
+def toggle_scheduler(action: str, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)): # action: start, stop
     job = scheduler.get_job('hourly_scrape')
 
     if action == "start":
@@ -631,7 +674,7 @@ def toggle_scheduler(action: str, db: Session = Depends(get_db)): # action: star
         raise HTTPException(status_code=400, detail="Invalid action")
 
 @app.post("/api/scraper/stop")
-def stop_scrape(db: Session = Depends(get_db)):
+def stop_scrape(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     ScraperState.set_stop(True)
 
     # Resume scheduler if enabled in config
@@ -645,7 +688,7 @@ def stop_scrape(db: Session = Depends(get_db)):
     return {"message": "Stop signal sent"}
 
 @app.post("/api/scraper/manual")
-def trigger_manual_scrape(background_tasks: BackgroundTasks):
+def trigger_manual_scrape(background_tasks: BackgroundTasks, current_user: User = Depends(get_current_admin_user)):
     if ScraperState.is_running():
         raise HTTPException(status_code=400, detail="Scraper is already running")
 

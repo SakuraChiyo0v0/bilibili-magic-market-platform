@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin, Modal, Form, Input } from 'antd';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined, LockOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import ControlPanel from './components/ControlPanel';
 import ItemTable from './components/ItemTable';
@@ -30,6 +31,83 @@ const PrivateRoute = ({ children }) => {
   }
 
   return children;
+};
+
+const ForcePasswordChangeModal = ({ visible, onLogout }) => {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const { message } = AntdApp.useApp();
+
+  const onFinish = async (values) => {
+    setLoading(true);
+    try {
+      await axios.post('/api/auth/change-password', {
+        old_password: values.old_password,
+        new_password: values.new_password
+      });
+      message.success('密码修改成功，请重新登录');
+      onLogout();
+    } catch (error) {
+      message.error('修改失败: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={<Space><LockOutlined style={{ color: '#faad14' }} /> 安全警告：请修改默认密码</Space>}
+      open={visible}
+      footer={null}
+      closable={false}
+      maskClosable={false}
+      keyboard={false}
+    >
+      <div style={{ marginBottom: 24 }}>
+        <Text type="secondary">检测到您正在使用默认密码 (admin123)。为了系统安全，请立即修改密码。</Text>
+      </div>
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item
+          name="old_password"
+          label="当前密码"
+          initialValue="admin123"
+          hidden
+        >
+          <Input.Password />
+        </Form.Item>
+        <Form.Item
+          name="new_password"
+          label="新密码"
+          rules={[{ required: true, message: '请输入新密码' }]}
+        >
+          <Input.Password placeholder="请输入新密码" />
+        </Form.Item>
+        <Form.Item
+          name="confirm_password"
+          label="确认新密码"
+          dependencies={['new_password']}
+          rules={[
+            { required: true, message: '请确认新密码' },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue('new_password') === value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('两次输入的密码不一致'));
+              },
+            }),
+          ]}
+        >
+          <Input.Password placeholder="请再次输入新密码" />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit" block loading={loading} danger>
+            确认修改并重新登录
+          </Button>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
 };
 
 function AppContent() {
@@ -66,6 +144,7 @@ function AppContent() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      {user?.is_default_password && <ForcePasswordChangeModal visible={true} onLogout={logout} />}
       <Sider
         theme="light"
         collapsible

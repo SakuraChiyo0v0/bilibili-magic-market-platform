@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, App, Card, Checkbox, Divider, InputNumber, Switch, Select, Row, Col, Tooltip, Typography, Alert, Space } from 'antd';
-import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined } from '@ant-design/icons';
+import { EyeOutlined, SafetyCertificateOutlined, DashboardOutlined, FilterOutlined, QuestionCircleOutlined, SaveOutlined, LockOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Option } = Select;
@@ -212,6 +212,65 @@ const Settings = () => {
                   style={{ fontFamily: 'monospace', fontSize: '12px' }}
                 />
               </Form.Item>
+            </Card>
+
+            <Card
+              title={<Space><LockOutlined /> 修改密码</Space>}
+              style={{ marginBottom: 16 }}
+              headStyle={{ backgroundColor: '#fafafa' }}
+            >
+              <Form.Item
+                name="old_password"
+                label="当前密码"
+              >
+                <Input.Password placeholder="请输入当前密码" />
+              </Form.Item>
+              <Form.Item
+                name="new_password"
+                label="新密码"
+              >
+                <Input.Password placeholder="请输入新密码" />
+              </Form.Item>
+              <Form.Item
+                name="confirm_password"
+                label="确认新密码"
+                dependencies={['new_password']}
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('new_password') === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('两次输入的密码不一致'));
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password placeholder="请再次输入新密码" />
+              </Form.Item>
+              <Button type="default" onClick={async () => {
+                const values = form.getFieldsValue(['old_password', 'new_password', 'confirm_password']);
+                if (!values.old_password || !values.new_password) {
+                  message.error('请输入当前密码和新密码');
+                  return;
+                }
+                if (values.new_password !== values.confirm_password) {
+                  message.error('两次输入的密码不一致');
+                  return;
+                }
+                try {
+                  await axios.post('/api/auth/change-password', {
+                    old_password: values.old_password,
+                    new_password: values.new_password
+                  });
+                  message.success('密码修改成功');
+                  form.setFieldsValue({ old_password: '', new_password: '', confirm_password: '' });
+                } catch (error) {
+                  message.error('修改失败: ' + (error.response?.data?.detail || error.message));
+                }
+              }}>
+                修改密码
+              </Button>
             </Card>
 
             <Card
