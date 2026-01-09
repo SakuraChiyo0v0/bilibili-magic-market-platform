@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs, Switch } from 'antd';
+import { Table, Tag, Image, Button, Input, Select, Space, Card, Row, Col, Tooltip, App, Modal, Form, InputNumber, Popconfirm, Tabs, Switch, List, Grid, Checkbox } from 'antd';
 import { SearchOutlined, CopyOutlined, LinkOutlined, PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, HeartOutlined, HeartFilled, SyncOutlined } from '@ant-design/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
@@ -7,11 +7,15 @@ import { useAuth } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
 
 const { Option } = Select;
+const { useBreakpoint } = Grid;
 
 const ItemTable = () => {
   const { message } = App.useApp();
   const { user } = useAuth();
   const location = useLocation();
+  const screens = useBreakpoint();
+  const isMobile = screens.xs;
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [favorites, setFavorites] = useState([]); // List of favorited goods_ids
@@ -532,8 +536,8 @@ const ItemTable = () => {
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: '16px 24px' }}>
-        <Row gutter={16} align="middle">
+      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: isMobile ? '12px' : '16px 24px' }}>
+        <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
             <Input
               placeholder="搜索商品名称..."
@@ -550,61 +554,66 @@ const ItemTable = () => {
               suffix={<SearchOutlined onClick={handleSearch} style={{ cursor: 'pointer', color: '#1890ff' }} />}
             />
           </Col>
-          <Col xs={24} sm={16} style={{ textAlign: 'right' }}>
-            <Space wrap>
+          <Col xs={24} sm={16} style={{ textAlign: isMobile ? 'left' : 'right' }}>
+            <Space wrap size={isMobile ? 8 : 16}>
               {selectedRowKeys.length > 0 && (
                 <Popconfirm
                   title={`确定删除选中的 ${selectedRowKeys.length} 个商品吗?`}
                   onConfirm={handleBatchDelete}
                 >
-                  <Button danger icon={<DeleteOutlined />}>
+                  <Button danger icon={<DeleteOutlined />} size={isMobile ? "small" : "middle"}>
                     批量删除 ({selectedRowKeys.length})
                   </Button>
                 </Popconfirm>
               )}
-              {/*
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal(null)} style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}>
-                新增商品
-              </Button>
-              */}
-              <span style={{ color: '#666', marginLeft: 8 }}>分类:</span>
-              <Select
-                mode="multiple"
-                value={categoryFilter}
-                style={{ minWidth: 120, maxWidth: 300 }}
-                onChange={handleCategoryChange}
-                allowClear
-                placeholder="全部"
-                maxTagCount="responsive"
-              >
-                {Object.entries(categoryMap).map(([key, label]) => (
-                  <Option key={key} value={key}>{label}</Option>
-                ))}
-              </Select>
-              <span style={{ color: '#666', marginLeft: 8 }}>排序:</span>
-              <Select value={sortBy} style={{ width: 120 }} onChange={handleSortChange}>
-                <Option value="update_time">更新时间</Option>
-                <Option value="price">当前价格</Option>
-                <Option value="discount">折扣力度</Option>
-                <Option value="diff">降价金额</Option>
-              </Select>
-              <Select value={sortOrder} style={{ width: 100 }} onChange={handleOrderChange}>
-                <Option value="desc">降序</Option>
-                <Option value="asc">升序</Option>
-              </Select>
-              <Button type="primary" onClick={handleSearch} icon={<SearchOutlined />}>查询</Button>
+
+              <Space size={4}>
+                <span style={{ color: '#666' }}>分类:</span>
+                <Select
+                  mode="multiple"
+                  value={categoryFilter}
+                  style={{ minWidth: 100, maxWidth: isMobile ? 150 : 300 }}
+                  onChange={handleCategoryChange}
+                  allowClear
+                  placeholder="全部"
+                  maxTagCount="responsive"
+                  size={isMobile ? "small" : "middle"}
+                >
+                  {Object.entries(categoryMap).map(([key, label]) => (
+                    <Option key={key} value={key}>{label}</Option>
+                  ))}
+                </Select>
+              </Space>
+
+              <Space size={4}>
+                <span style={{ color: '#666' }}>排序:</span>
+                <Select value={sortBy} style={{ width: isMobile ? 100 : 120 }} onChange={handleSortChange} size={isMobile ? "small" : "middle"}>
+                  <Option value="update_time">更新时间</Option>
+                  <Option value="price">当前价格</Option>
+                  <Option value="discount">折扣力度</Option>
+                  <Option value="diff">降价金额</Option>
+                </Select>
+                <Select value={sortOrder} style={{ width: isMobile ? 80 : 100 }} onChange={handleOrderChange} size={isMobile ? "small" : "middle"}>
+                  <Option value="desc">降序</Option>
+                  <Option value="asc">升序</Option>
+                </Select>
+              </Space>
+
+              <Button type="primary" onClick={handleSearch} icon={<SearchOutlined />} size={isMobile ? "small" : "middle"}>查询</Button>
+
               {user && (
-                <Space style={{ marginLeft: 16 }}>
+                <Space style={{ marginLeft: isMobile ? 0 : 16 }}>
                   <span style={{ color: '#666' }}>只看关注:</span>
-                  <Switch checked={onlyFavorites} onChange={handleOnlyFavoritesChange} />
+                  <Switch checked={onlyFavorites} onChange={handleOnlyFavoritesChange} size={isMobile ? "small" : "default"} />
                   {onlyFavorites && (
                     <Tooltip title="检查所有关注商品的链接有效性（后台运行）">
                       <Button
                         icon={<SyncOutlined />}
                         onClick={handleCheckFavorites}
                         loading={checkLoading}
+                        size={isMobile ? "small" : "middle"}
                       >
-                        检查有效性
+                        {isMobile ? "检查" : "检查有效性"}
                       </Button>
                     </Tooltip>
                   )}
@@ -615,16 +624,111 @@ const ItemTable = () => {
         </Row>
       </Card>
 
-      <Table
-        rowSelection={rowSelection}
-        columns={columns}
-        rowKey="goods_id"
-        dataSource={data}
-        pagination={{ ...pagination, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-        loading={loading}
-        onChange={handleTableChange}
-        scroll={{ x: 1000 }}
-      />
+      {isMobile ? (
+        <List
+          dataSource={data}
+          loading={loading}
+          pagination={{
+            ...pagination,
+            onChange: handleTableChange,
+            simple: true,
+            size: "small"
+          }}
+          renderItem={(item) => {
+            const isFav = favorites.includes(item.goods_id);
+            const discount = item.market_price > 0 ? ((item.min_price / item.market_price) * 10).toFixed(1) : '-';
+            const diff = (item.market_price - item.min_price).toFixed(0);
+            const isOutOfStock = item.is_out_of_stock;
+            const isSelected = selectedRowKeys.includes(item.goods_id);
+
+            return (
+              <List.Item
+                style={{ background: '#fff', marginBottom: 8, padding: 12, borderRadius: 8, border: '1px solid #f0f0f0' }}
+                actions={[
+                  <Button
+                    type="text"
+                    icon={isFav ? <HeartFilled style={{ color: '#eb2f96' }} /> : <HeartOutlined />}
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(item.goods_id); }}
+                  />,
+                  <Popconfirm title="确定删除吗?" onConfirm={(e) => { e.stopPropagation(); handleDelete(item.goods_id); }}>
+                    <Button type="text" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
+                ]}
+                onClick={() => showDetail(item)}
+              >
+                <div style={{ display: 'flex', width: '100%' }}>
+                  <div style={{ marginRight: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Checkbox
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const newKeys = e.target.checked
+                          ? [...selectedRowKeys, item.goods_id]
+                          : selectedRowKeys.filter(key => key !== item.goods_id);
+                        setSelectedRowKeys(newKeys);
+                      }}
+                      style={{ marginBottom: 8 }}
+                    />
+                    {showImages && (
+                      <Image
+                        width={80}
+                        src={item.img}
+                        style={{ borderRadius: 4 }}
+                        preview={{ src: item.img }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, marginBottom: 4, color: '#1890ff', fontSize: 14, lineHeight: '1.4' }}>
+                      {item.name}
+                    </div>
+                    <Space size="small" style={{ marginBottom: 4 }}>
+                      <Tag style={{ margin: 0 }}>{item.goods_id}</Tag>
+                      {item.category && categoryMap[String(item.category)] && (
+                        <Tag color="blue" style={{ margin: 0 }}>{categoryMap[String(item.category)]}</Tag>
+                      )}
+                    </Space>
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: isOutOfStock ? '#999' : '#f5222d' }}>
+                        {isOutOfStock ? '暂无报价' : `¥${item.min_price}`}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#999', textDecoration: 'line-through', marginLeft: 8 }}>
+                        ¥{item.market_price}
+                      </span>
+                    </div>
+                    <Space size="small" style={{ marginTop: 4 }}>
+                      {!isOutOfStock && (
+                        <>
+                          <Tag color="green">{discount}折</Tag>
+                          {diff > 0 && <Tag color="red">省¥{diff}</Tag>}
+                        </>
+                      )}
+                      {item.historical_low_price && (item.is_out_of_stock || item.min_price > item.historical_low_price) && (
+                        <Tag color="gold">史低: ¥{item.historical_low_price}</Tag>
+                      )}
+                    </Space>
+                    <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                      {new Date(item.update_time).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </List.Item>
+            );
+          }}
+        />
+      ) : (
+        <Table
+          rowSelection={rowSelection}
+          columns={columns}
+          rowKey="goods_id"
+          dataSource={data}
+          pagination={{ ...pagination, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+          loading={loading}
+          onChange={handleTableChange}
+          scroll={{ x: 1000 }}
+        />
+      )}
 
       {/*
       <Modal

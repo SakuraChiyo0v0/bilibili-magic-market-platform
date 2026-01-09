@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Space, Typography, theme, Table, Image, Tag, Progress, Button } from 'antd';
+import { Card, Col, Row, Statistic, Space, Typography, theme, Table, Image, Tag, Progress, Button, Grid } from 'antd';
 import {
   ShoppingOutlined,
   HistoryOutlined,
@@ -15,10 +15,14 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const { Text, Title } = Typography;
+const { useBreakpoint } = Grid;
 
 const Dashboard = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobile = screens.xs;
+
   const [stats, setStats] = useState({
     total_items: 0,
     total_history: 0,
@@ -189,6 +193,7 @@ const Dashboard = () => {
           <Card
             title={<Space><FallOutlined style={{ color: token.colorPrimary }} /><span>捡漏推荐 (高折扣)</span></Space>}
             variant="borderless"
+            bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
           >
             <Table
               dataSource={priceDrops}
@@ -196,6 +201,7 @@ const Dashboard = () => {
               pagination={false}
               size="small"
               columns={columns}
+              scroll={{ x: 400 }}
             />
           </Card>
         </Col>
@@ -207,6 +213,7 @@ const Dashboard = () => {
             extra={<Button type="link" size="small" onClick={goToFavorites}>查看全部 <ArrowRightOutlined /></Button>}
             variant="borderless"
             style={{ marginBottom: 24 }}
+            bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
           >
             <Table
               dataSource={recentFavorites}
@@ -215,12 +222,14 @@ const Dashboard = () => {
               size="small"
               columns={columns}
               locale={{ emptyText: '暂无关注商品或近期无更新' }}
+              scroll={{ x: 400 }}
             />
           </Card>
           <Card
             title={<Space><PieChartOutlined /><span>分类占比</span></Space>}
             style={{ height: '400px' }}
             variant="borderless"
+            bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
           >
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">

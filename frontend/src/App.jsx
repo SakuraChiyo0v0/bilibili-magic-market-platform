@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin, Modal, Form, Input } from 'antd';
-import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined, LockOutlined, TeamOutlined } from '@ant-design/icons';
+import { Layout, Menu, theme, Typography, ConfigProvider, App as AntdApp, Tabs, Button, Dropdown, Avatar, Space, Spin, Modal, Form, Input, Drawer, Grid } from 'antd';
+import { DesktopOutlined, PieChartOutlined, SettingOutlined, RocketOutlined, CodeOutlined, ApiOutlined, UserOutlined, LogoutOutlined, LockOutlined, TeamOutlined, MenuOutlined } from '@ant-design/icons';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
@@ -18,6 +18,7 @@ import TaskMonitor from './components/TaskMonitor';
 
 const { Header, Content, Footer, Sider } = Layout;
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const DashboardPage = () => {
   return <Dashboard />;
@@ -116,6 +117,9 @@ const ForcePasswordChangeModal = ({ visible, onLogout }) => {
 
 function AppContent() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const screens = useBreakpoint();
+
   const {
     token: { colorBgContainer, borderRadiusLG, colorPrimary },
   } = theme.useToken();
@@ -139,23 +143,23 @@ function AppContent() {
   }
 
   const items = [
-    { key: '/', icon: <PieChartOutlined />, label: <Link to="/">数据看板</Link> },
-    { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items">商品列表</Link> },
+    { key: '/', icon: <PieChartOutlined />, label: <Link to="/" onClick={() => setMobileMenuOpen(false)}>数据看板</Link> },
+    { key: '/items', icon: <DesktopOutlined />, label: <Link to="/items" onClick={() => setMobileMenuOpen(false)}>商品列表</Link> },
   ];
 
   // Only admin can see Control Panel and User Management
   if (user?.role === 'admin') {
     items.push(
-      { key: '/control', icon: <CodeOutlined />, label: <Link to="/control">爬虫控制</Link> },
-      { key: '/users', icon: <TeamOutlined />, label: <Link to="/users">用户管理</Link> }
+      { key: '/control', icon: <CodeOutlined />, label: <Link to="/control" onClick={() => setMobileMenuOpen(false)}>爬虫控制</Link> },
+      { key: '/users', icon: <TeamOutlined />, label: <Link to="/users" onClick={() => setMobileMenuOpen(false)}>用户管理</Link> }
     );
   }
 
   // API Access is available for everyone (to apply for developer)
-  items.push({ key: '/api', icon: <ApiOutlined />, label: <Link to="/api">API 接入</Link> });
+  items.push({ key: '/api', icon: <ApiOutlined />, label: <Link to="/api" onClick={() => setMobileMenuOpen(false)}>API 接入</Link> });
 
   // Settings is available for everyone (for password change), but content differs
-  items.push({ key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> });
+  items.push({ key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings" onClick={() => setMobileMenuOpen(false)}>系统设置</Link> });
 
   const userMenu = {
     items: [
@@ -168,61 +172,101 @@ function AppContent() {
     ],
   };
 
+  // Determine if we are on mobile (xs screen)
+  // Note: screens.xs might be undefined on first render, so we default to false or check if screens is empty
+  const isMobile = screens.xs === true;
+
+  const renderLogo = () => (
+    <div style={{
+      height: 64,
+      margin: 16,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden'
+    }}>
+      <RocketOutlined style={{ fontSize: 24, color: colorPrimary, marginRight: (collapsed && !isMobile) ? 0 : 10 }} />
+      {(!collapsed || isMobile) && (
+        <span style={{ color: colorPrimary, fontSize: 18, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+          Magic Market
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {user?.is_default_password && <ForcePasswordChangeModal visible={true} onLogout={logout} />}
-      <Sider
-        theme="light"
-        collapsible
-        collapsed={collapsed}
-        onCollapse={(value) => setCollapsed(value)}
-        style={{
-          overflow: 'auto',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 100,
-          boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)'
-        }}
+
+      {/* Mobile Drawer Navigation */}
+      <Drawer
+        placement="left"
+        onClose={() => setMobileMenuOpen(false)}
+        open={mobileMenuOpen}
+        width={240}
+        styles={{ body: { padding: 0 } }}
+        closable={false}
       >
-        <div style={{
-          height: 64,
-          margin: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden'
-        }}>
-          <RocketOutlined style={{ fontSize: 24, color: colorPrimary, marginRight: collapsed ? 0 : 10 }} />
-          {!collapsed && (
-            <span style={{ color: colorPrimary, fontSize: 18, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-              Magic Market
-            </span>
-          )}
-        </div>
+        {renderLogo()}
         <Menu theme="light" defaultSelectedKeys={['/']} selectedKeys={[location.pathname]} mode="inline" items={items} />
-      </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s', background: '#f0f2f5' }}>
-        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      </Drawer>
+
+      {/* Desktop Sider Navigation */}
+      {!isMobile && (
+        <Sider
+          theme="light"
+          collapsible
+          collapsed={collapsed}
+          onCollapse={(value) => setCollapsed(value)}
+          style={{
+            overflow: 'auto',
+            height: '100vh',
+            position: 'fixed',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            zIndex: 100,
+            boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)'
+          }}
+        >
+          {renderLogo()}
+          <Menu theme="light" defaultSelectedKeys={['/']} selectedKeys={[location.pathname]} mode="inline" items={items} />
+        </Sider>
+      )}
+
+      <Layout style={{
+        marginLeft: isMobile ? 0 : (collapsed ? 80 : 200),
+        transition: 'all 0.2s',
+        background: '#f0f2f5'
+      }}>
+        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {isMobile ? (
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => setMobileMenuOpen(true)}
+              style={{ fontSize: '16px', width: 64, height: 64, marginLeft: -24 }}
+            />
+          ) : <div />}
+
           {user && (
-            <Space size="large">
-              <TaskMonitor />
+            <Space size={isMobile ? "small" : "large"}>
+              {!isMobile && <TaskMonitor />}
               <Dropdown menu={userMenu}>
                 <Space style={{ cursor: 'pointer' }}>
                   <Avatar icon={<UserOutlined />} style={{ backgroundColor: colorPrimary }} />
-                  <Text strong>{user.username}</Text>
+                  {!isMobile && <Text strong>{user.username}</Text>}
                 </Space>
               </Dropdown>
             </Space>
           )}
         </Header>
-        <Content style={{ margin: '0 16px', overflow: 'initial' }}>
+        <Content style={{ margin: isMobile ? '16px 8px' : '0 16px', overflow: 'initial' }}>
+          {isMobile && <div style={{ marginBottom: 16 }}><TaskMonitor /></div>}
           <div
             style={{
-              margin: '16px 0',
-              padding: 24,
+              margin: isMobile ? '0' : '16px 0',
+              padding: isMobile ? 12 : 24,
               minHeight: 360,
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
@@ -239,7 +283,7 @@ function AppContent() {
             </Routes>
           </div>
         </Content>
-        <Footer style={{ textAlign: 'center' }}>
+        <Footer style={{ textAlign: 'center', padding: isMobile ? '12px 0' : '24px 50px' }}>
           魔力赏市场爬虫 ©{new Date().getFullYear()} 由 MiCode 创建
         </Footer>
       </Layout>
